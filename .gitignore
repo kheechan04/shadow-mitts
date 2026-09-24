@@ -3,3 +3,6 @@ dist
 *.log
 # personal motion data — see recordings/README.md
 recordings/*.json
+
+# personal shortcut to the live site (kept local)
+*.url
