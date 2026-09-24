@@ -27,7 +27,8 @@ const median = (a: number[]) => [...a].sort((x, y) => x - y)[Math.floor(a.length
 const guard = loadByNote('사우스포, 가드 10초');
 
 describe.skipIf(!guard)('world/image axis conventions (guard recording)', () => {
-  const frames = guard!.frames.filter((f) => f.lm && f.wl && [0, 11, 12, 15, 16, 23, 24].every((i) => f.lm![i][3] >= 0.5));
+  // describe bodies run even when skipped, so this must not assume the recording exists
+  const frames = (guard?.frames ?? []).filter((f) => f.lm && f.wl && [0, 11, 12, 15, 16, 23, 24].every((i) => f.lm![i][3] >= 0.5));
   const med = (fn: (f: (typeof frames)[number]) => number) => median(frames.map(fn));
 
   it('has enough usable frames', () => {
