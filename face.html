@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shadow Mitts · 리액션 얼굴 실험실</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Jua&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/face/facelab.css" />
+  </head>
+  <body>
+    <main class="lab">
+      <h1>리액션 얼굴 <span>실험실</span></h1>
+      <p class="lead">사진 한 장으로 판정별 표정 5개를 만들어 봐요. (시제품)</p>
+
+      <section class="privacy" id="privacy">
+        <strong>🔒 얼굴 사진은 이 기기 밖으로 나가지 않아요</strong>
+        <ul>
+          <li>촬영·얼굴 인식·표정 만들기는 전부 <b>이 브라우저 안에서</b> 처리돼요. 사진을 서버로 보내지 않아요.</li>
+          <li>사진은 <b>저장하지 않아요</b>. 이 페이지의 메모리에만 있고, "지우기"를 누르거나 창을 닫으면 사라져요.</li>
+          <li>찍자마자 카메라는 꺼져요. 파일 업로드는 받지 않아요(내 얼굴만 쓸 수 있게).</li>
+          <li>표정 분석·얼굴 인식(누구인지 알아보기)은 하지 않아요. 얼굴 위치 좌표만 써서 사진을 늘리고 당겨요.</li>
+        </ul>
+        <small>페이지를 여는 동안 글꼴(Google Fonts)과 얼굴 인식 모델 파일(Google·jsDelivr)을 내려받아요. 이때 보통의 웹사이트처럼 IP 주소가 전달되지만, 사진은 전달되지 않아요.</small>
+      </section>
+
+      <section class="shoot">
+        <div class="viewer">
+          <video id="video" playsinline muted></video>
+          <canvas id="shot" hidden></canvas>
+          <div id="count" class="count"></div>
+          <div id="status" class="status">카메라를 켜 주세요</div>
+        </div>
+        <div class="buttons">
+          <button id="camBtn" class="btn">📷 카메라 켜기</button>
+          <button id="snapBtn" class="btn primary" disabled>찍기 (3초 뒤)</button>
+          <button id="clearBtn" class="btn ghost" disabled>🗑 지우기</button>
+        </div>
+      </section>
+
+      <section class="results" id="results" hidden>
+        <label class="strength">표정 강도 <input id="strength" type="range" min="0.3" max="1.6" step="0.05" value="1" /> <output id="strengthOut">1.00</output></label>
+        <label class="strength"><input id="overlays" type="checkbox" checked /> 만화 효과</label>
+        <div class="grid" id="grid"></div>
+      </section>
+    </main>
+    <script type="module" src="/src/face/facelab.ts"></script>
+  </body>
+</html>

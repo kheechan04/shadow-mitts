@@ -11,6 +11,8 @@ export default defineConfig({
   define: { __MP_VERSION__: JSON.stringify(mpVersion) },
   // the pose worker (src/app/poseWorker.ts) is a module worker
   worker: { format: 'es' },
+  // two pages: the game and the reaction-face lab (prototype)
+  build: { rollupOptions: { input: { main: 'index.html', face: 'face.html' } } },
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts'],
