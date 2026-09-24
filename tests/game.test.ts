@@ -109,7 +109,6 @@ describe('judgement', () => {
     const g = new GameSession(cfg({ difficulty: 'hard' }), 0);
     const i = g.mitts.findIndex((m) => m.comboIndex > 0);
     const [prev, next] = [g.mitts[i - 1], g.mitts[i]];
-    expect(next.enterAt).toBe(prev.tHit);
     // hard: 450 ms between punches < 550 ms hold → the window is cut at the next arrival
     expect(prev.holdUntil).toBe(next.tHit);
     const before = g.mitts.map((m) => m.tHit);

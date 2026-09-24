@@ -378,6 +378,8 @@ interface MittView {
   start: THREE.Vector3;
   control: THREE.Vector3;
   judgedAt: number | null;
+  /** when it came into view (grows in from here) */
+  bornAt: number;
   grade: Judgement['grade'] | null;
   /** materials that light up on impact */
   glowMats: THREE.MeshStandardMaterial[];
@@ -385,13 +387,15 @@ interface MittView {
 
 /**
  * How hard each grade hits (M3 "타격감"; play-test said the first pass "wasn't 시원"):
- * shake, sparks, flash, shockwave, zoom kick and a hit-stop freeze.
+ * shake, sparks, flash, shockwave and a zoom kick. (A hit-stop freeze was tried and removed: it
+ * stopped every other mitt mid-flight and made them jump — "끊기는 느낌".)
  */
-const IMPACT: Record<Judgement['grade'], { shake: number; sparks: number; flash: number; wave: number; color: number; kick: number; freezeMs: number }> = {
-  perfect: { shake: 0.065, sparks: 70, flash: 2.4, wave: 1.4, color: 0xffc940, kick: 5, freezeMs: 75 },
-  good: { shake: 0.035, sparks: 38, flash: 1.5, wave: 1.0, color: 0x5eead4, kick: 2.5, freezeMs: 40 },
-  partial: { shake: 0.014, sparks: 16, flash: 0.8, wave: 0.6, color: 0x93c5fd, kick: 0, freezeMs: 0 },
-  miss: { shake: 0, sparks: 0, flash: 0, wave: 0, color: 0xffffff, kick: 0, freezeMs: 0 },
+const IMPACT: Record<Judgement['grade'], { shake: number; sparks: number; flash: number; wave: number; color: number; kick: number }> = {
+  // kick (zoom) kept small: a big one jolted every other mitt 20–40 px on screen
+  perfect: { shake: 0.065, sparks: 70, flash: 2.4, wave: 1.4, color: 0xffc940, kick: 1.5 },
+  good: { shake: 0.035, sparks: 38, flash: 1.5, wave: 1.0, color: 0x5eead4, kick: 0.8 },
+  partial: { shake: 0.014, sparks: 16, flash: 0.8, wave: 0.6, color: 0x93c5fd, kick: 0 },
+  miss: { shake: 0, sparks: 0, flash: 0, wave: 0, color: 0xffffff, kick: 0 },
 };
 
 interface Spark { sprite: THREE.Sprite; vel: THREE.Vector3; at: number; life: number }
@@ -401,12 +405,7 @@ interface Spark { sprite: THREE.Sprite; vel: THREE.Vector3; at: number; life: nu
  * read as afterimages, so: a judged mitt pops and is gone in this time, right where it was hit.
  */
 const JUDGED_POP_MS = 160;
-/**
- * Later mitts of a combo wait far back along their path, solid, and start their final approach
- * when the previous mitt arrives (Mitt.enterAt) — on the clock, never waiting for a judgement
- * (play-test: waiting made a late hit delay every later mitt, which then snapped in and vanished).
- */
-const WAIT_K = 0.3;
+const SPAWN_MS = 200;
 interface Wave { mesh: THREE.Mesh; at: number; size: number }
 
 export interface HandInput {
@@ -436,8 +435,6 @@ export class GameScene {
   private shake = { amp: 0, at: 0 };
   private fovKick = { amount: 0, at: 0 };
   private lastRender = 0;
-  /** hit-stop: the world freezes for a beat on a strong hit */
-  private freezeUntil = 0;
   /** accessibility: screen shake can be turned off in the menu */
   shakeEnabled = true;
 
@@ -578,7 +575,7 @@ export class GameScene {
       const mat = (o as THREE.Mesh).material;
       if (mat instanceof THREE.MeshStandardMaterial) glowMats.push(mat);
     });
-    return { mitt: m, group, ghost, ring, target, start, control, judgedAt: null, grade: null, glowMats };
+    return { mitt: m, group, ghost, ring, target, start, control, judgedAt: null, grade: null, glowMats, bornAt: 0 };
   }
 
   /** A punch was detected: throw that glove (toward its mitt when it hit one). */
@@ -633,7 +630,6 @@ export class GameScene {
 
     if (this.shakeEnabled && fx.shake > 0) this.shake = { amp: Math.max(this.shake.amp * 0.5, fx.shake), at: now };
     if (fx.kick) this.fovKick = { amount: fx.kick, at: now };
-    if (fx.freezeMs) this.freezeUntil = Math.max(this.freezeUntil, now + fx.freezeMs);
   }
 
   /**
@@ -644,15 +640,11 @@ export class GameScene {
     mitts: readonly Mitt[], stance: Stance, approachMs: number, lateMs: number, now: number,
     hands: Record<Side, HandInput | null>,
   ): void {
-    // hit-stop: hold every animation still for a moment, only the camera keeps shaking
-    if (now < this.freezeUntil) {
-      const amp = this.shake.amp;
-      this.camera.position.set((Math.random() - 0.5) * 2 * amp, 1.6 + (Math.random() - 0.5) * 2 * amp, 0);
-      this.camera.lookAt(0, 1.45, -3);
-      this.lastRender = now;
-      this.renderer.render(this.scene, this.camera);
-      return;
-    }
+    // Every mitt moves only by the clock, at an even pace along its whole path, like notes in a
+    // rhythm game. (Tried: parking later combo mitts and sending them in on their turn — the stop
+    // and sudden dash read as "끊김" and "갑자기 나타남".) The timing ring and target marker go to
+    // the one mitt to hit now: the earliest that is still unjudged and inside its window.
+    const current = mitts.find((m) => !m.judgement && this.views.get(m.id)?.judgedAt == null && now < m.holdUntil - JUDGED_POP_MS);
     // create / update / retire mitts
     for (const m of mitts) {
       const since = now - (m.tHit - approachMs);
@@ -666,21 +658,27 @@ export class GameScene {
         continue;
       }
       if (!v) {
+        // Never (re)create a view for a mitt that is already judged or past its window: after a
+        // judged view was retired, this used to rebuild it as a fresh unjudged mitt for a few
+        // frames — the long-standing "잔상" / "갑자기 나타남" (found with a frame-by-frame trace).
+        if (m.judgement || now >= m.holdUntil) continue;
+        // One mitt per spot: while an earlier mitt with the same number is still on screen, this one
+        // stays unseen (still moving on the clock) and grows in once that one is gone — a copy
+        // trailing on the same path read as "같은 자리에 또 나옴" / an afterimage.
+        let blocked = false;
+        for (const o of this.views.values()) if (o.mitt.n === m.n && o.mitt.tHit < m.tHit) blocked = true;
+        if (blocked) continue;
         v = this.makeView(m, stance);
+        v.bornAt = now;
         this.views.set(m.id, v);
       }
       const k = since / approachMs;
       if (v.judgedAt === null) {
         const held = now - m.tHit;
-        // path progress: first mitt of a combo flies the whole way; later ones park at WAIT_K,
-        // then cover the rest between the previous mitt's arrival and their own
-        let u = Math.min(1, k);
-        const waiting = m.enterAt !== null && now < m.enterAt;
-        if (m.enterAt !== null) {
-          const kPark = Math.min(WAIT_K, 1 - (m.tHit - m.enterAt) / approachMs);
-          u = waiting ? Math.min(k, kPark) : kPark + (1 - kPark) * Math.min(1, (now - m.enterAt) / Math.max(1, m.tHit - m.enterAt));
-        }
-        const isCurrent = !waiting;
+        const u = Math.min(1, k);
+        // grows in over its first 200 ms instead of popping into existence (hooks spawn on screen)
+        if (now < m.holdUntil - JUDGED_POP_MS) v.group.scale.setScalar(MITT_SCALE * Math.min(1, (now - v.bornAt) / SPAWN_MS));
+        const isCurrent = m === current;
         if (u < 1) {
           // quadratic Bezier start → control → target
           const a = v.start.clone().multiplyScalar((1 - u) * (1 - u));
@@ -701,10 +699,10 @@ export class GameScene {
         }
         // the timing ring appears halfway and closes onto the mitt outline exactly at the hit
         const r = Math.min(1, Math.max(0, (1 - k) / 0.5));
-        v.ring.visible = isCurrent && k > 0.45 && now < m.holdUntil - JUDGED_POP_MS;
+        v.ring.visible = isCurrent && k > 0.45;
         v.ring.scale.setScalar(1 + 1.3 * r);
         (v.ring.material as THREE.MeshBasicMaterial).color.set(k >= 0.97 ? 0xfbbf24 : 0xffffff);
-        v.ghost.visible = isCurrent && k > 0.5 && k < 1.05 && now < m.holdUntil - JUDGED_POP_MS;
+        v.ghost.visible = isCurrent && k > 0.5 && k < 1.05;
       } else {
         // pops where it was hit (a quick squash-and-swell), then it's simply gone; a miss just shrinks
         const age = Math.min(1, (now - v.judgedAt) / JUDGED_POP_MS);

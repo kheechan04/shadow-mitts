@@ -64,6 +64,7 @@ const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 
 /** Below this the camera status warns (punch recognition drops sharply under ~20 fps). */
 const SLOW_FPS = 20;
+const POW_MS = 260;
 
 export interface GameDeps {
   params: () => Params;
@@ -268,7 +269,7 @@ export class GameController {
     // Show each beat as a jab mitt so calibration feels like the game.
     this.calibMitts = this.calib.beats.map((tHit, i) => ({
       id: 10_000 + i, n: 1, side: lead, kind: 'straight' as const, tHit, round: 0, comboIndex: 0, comboSize: 1,
-      holdUntil: tHit + CALIBRATION.windowMs, enterAt: null, judgement: null,
+      holdUntil: tHit + CALIBRATION.windowMs, judgement: null,
     }));
     this.setScreen('calibrating');
   }
@@ -518,9 +519,10 @@ export class GameController {
     this.lastFx = now;
 
     // comic impact bursts: a jagged star that pops in, with the sound word on it
-    this.pows = this.pows.filter((p) => now - p.at < 420);
+    // short: a burst left hanging where the mitt was read as an afterimage
+    this.pows = this.pows.filter((p) => now - p.at < POW_MS);
     for (const p of this.pows) {
-      const age = (now - p.at) / 420;
+      const age = (now - p.at) / POW_MS;
       const pop = age < 0.18 ? 0.3 + (age / 0.18) * 1.0 : 1.3 - (age - 0.18) * 0.35;
       const r = Math.max(34, c.clientWidth / 16) * p.size * pop;
       ctx.save();

@@ -112,8 +112,6 @@ export interface Mitt {
   comboSize: number;
   /** end of the hit window: tHit + holdMs, cut short when the next mitt arrives sooner */
   holdUntil: number;
-  /** inside a combo: the previous mitt's tHit, when this one starts its final approach */
-  enterAt: number | null;
   judgement: Judgement | null;
 }
 
@@ -205,7 +203,6 @@ export class GameSession {
             id: id++, n, side: numberSide(n, cfg.stance), kind: numberKind(n),
             tHit: t + i * this.spec.inComboGapMs, round: r, comboIndex: i, comboSize: combo.length,
             holdUntil: t + i * this.spec.inComboGapMs + this.spec.holdMs,
-            enterAt: i > 0 ? t + (i - 1) * this.spec.inComboGapMs : null,
             judgement: null,
           });
         });
