@@ -9,6 +9,8 @@ const mpVersion = JSON.parse(
 export default defineConfig({
   base: './',
   define: { __MP_VERSION__: JSON.stringify(mpVersion) },
+  // the pose worker (src/app/poseWorker.ts) is a module worker
+  worker: { format: 'es' },
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts'],

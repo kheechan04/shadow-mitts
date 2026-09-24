@@ -36,6 +36,7 @@ export const PARAM_DEFS = [
   { key: 'punchMaxDown', label: '허용 아래 이동 (넘으면 무시)', group: '펀치 검출', min: 0, max: 1, step: 0.01, default: 0.25, unit: 'T' },
   { key: 'punchMaxOutward', label: '허용 바깥 이동 (넘으면 무시)', group: '펀치 검출', min: 0, max: 1, step: 0.01, default: 0.15, unit: 'T' },
   { key: 'dipDriveMinSpeed', label: '어퍼컷(딥 후) 최소 최고 속도', group: '펀치 검출', min: 0.2, max: 10, step: 0.05, default: 1.0, unit: 'T/s' },
+  { key: 'punchUpOutwardFrac', label: '위로 뻗을 때 허용 바깥 비율', group: '펀치 검출', min: 0, max: 1.5, step: 0.01, default: 0.4, unit: '' },
   { key: 'punchMaxDipDepth', label: '어퍼컷 딥 최대 깊이', group: '펀치 검출', min: 0, max: 2, step: 0.01, default: 0.7, unit: 'T' },
   { key: 'punchMaxCommon', label: '양손 동시 움직임 허용 (넘으면 몸통 회전)', group: '펀치 검출', min: 0, max: 1.5, step: 0.01, default: 0.45 },
   { key: 'torsoTurnMaxSpeed', label: '몸통 회전으로 볼 최고 속도 상한', group: '펀치 검출', min: 0, max: 15, step: 0.1, default: 4.0, unit: 'T/s' },
@@ -50,6 +51,8 @@ export const PARAM_DEFS = [
   { key: 'guardOkMaxSide', label: '가드: 입에서 옆으로 허용', group: '가드 판정', min: 0, max: 1.5, step: 0.01, default: 0.4, unit: 'T' },
   // --- 펀치 분류 ---
   { key: 'hookMaxForearmAngle', label: '훅: 팔뚝이 이 각도보다 누우면 훅', group: '펀치 분류', min: 0, max: 90, step: 1, default: 30, unit: '°' },
+  { key: 'hookDipMinElbowUp', label: '딥이 있어도 훅: 팔꿈치 높이 최소', group: '펀치 분류', min: -1, max: 0.5, step: 0.01, default: -0.15, unit: 'T' },
+  { key: 'dipIgnoreElbowUp', label: '딥 무시(스트레이트): 팔꿈치 높이 최소', group: '펀치 분류', min: -1, max: 0.5, step: 0.01, default: -0.05, unit: 'T' },
   { key: 'uppercutBias', label: '어퍼컷 쪽으로 기울이기', group: '펀치 분류', min: -4, max: 4, step: 0.1, default: 0 },
 ] as const satisfies readonly ParamDef[];
 

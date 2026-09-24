@@ -199,7 +199,9 @@ class ArmDetector {
           const isPunch =
             this.peak.disp >= p.punchMinExtent &&
             delta[1] >= -p.punchMaxDown &&
-            delta[0] >= -p.punchMaxOutward &&
+            // A straight at a mitt held off to the lead side goes up AND out (in-game jabs: out 0.22,
+            // up 0.73 were dropped). Hook wind-ups and dragged guard hands go out sideways, not up.
+            (delta[0] >= -p.punchMaxOutward || (delta[1] > 0 && -delta[0] <= p.punchUpOutwardFrac * delta[1])) &&
             this.peakSpeed >= minSpeed &&
             riseMs <= p.punchMaxRiseMs;
           // Uppercut wind-up: the wrist dips first, then drives up — often only back to guard

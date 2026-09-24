@@ -1,11 +1,10 @@
-import type { PoseLandmarker } from '@mediapipe/tasks-vision';
 import type { FrameFeatures, Vec3 } from '../core/features';
 import { RecognitionPipeline } from '../core/pipeline';
-import type { P4, PoseFrame } from '../core/pose';
+import type { PoseFrame } from '../core/pose';
 import { parseRecording, serializeRecording, type Recording } from '../core/recording';
 import { GameController } from './gameController';
 import { FeatureGraph } from './graph';
-import { loadLandmarker, type Delegate, type ModelVariant } from './landmarker';
+import { loadLandmarker, type Delegate, type ModelVariant, type PoseDetector } from './landmarker';
 import { drawOverlay } from './overlay';
 import { PunchUi } from './punchUi';
 import { buildTuningPanel, loadParams } from './tuning';
@@ -51,7 +50,7 @@ if (import.meta.env.DEV) (window as unknown as { __game: GameController }).__gam
 // ---------------------------------------------------------------- camera
 
 let stream: MediaStream | null = null;
-let landmarker: PoseLandmarker | null = null;
+let landmarker: PoseDetector | null = null;
 let delegate: Delegate | null = null;
 let model: ModelVariant = 'lite';
 let lastTs = 0;
@@ -90,12 +89,14 @@ async function ensureLandmarker(): Promise<void> {
   landmarker?.close();
   landmarker = null;
   showBanner(`포즈 모델(${wantModel}) 로딩 중…`, true);
-  const loaded = await loadLandmarker(wantModel, forceCpu);
+  // ?mainthread runs inference on the main thread (the pre-worker behaviour), for comparison
+  const loaded = await loadLandmarker(wantModel, forceCpu, !new URLSearchParams(location.search).has('mainthread'));
   landmarker = loaded.landmarker;
   delegate = loaded.delegate;
   model = loaded.model;
   gpuRetried = false;
-  $('sDelegate').textContent = loaded.gpuError ? `${delegate} (GPU 실패: ${loaded.gpuError})` : delegate;
+  const where = loaded.landmarker.where === 'worker' ? '별도 스레드' : '메인 스레드';
+  $('sDelegate').textContent = loaded.gpuError ? `${delegate} · ${where} (GPU 실패: ${loaded.gpuError})` : `${delegate} · ${where}`;
 }
 
 const CAMERA_KEY = 'shadowmitts.camera.v1';
@@ -188,29 +189,63 @@ async function startCamera(): Promise<void> {
   latencySupported = null;
   showBanner('');
   setMode('camera');
-  scheduleVideoFrame();
+  startFrameLoop();
 }
 
-function scheduleVideoFrame(): void {
-  if (mode !== 'camera') return;
+// Frames are watched separately from inference: while the worker is busy, new camera frames only
+// mark "a newer frame is ready", and the next inference starts on the latest frame as soon as the
+// previous one returns — no waiting for yet another camera frame (that idle wait dropped the
+// worker to ~13 detections/s where the main thread managed ~20).
+let frameReady = false;
+let frameCapture: number | undefined;
+let wakeLoop: (() => void) | null = null;
+let loopGen = 0;
+
+function onNewVideoFrame(captureTime: number | undefined): void {
+  frameReady = true;
+  frameCapture = captureTime;
+  wakeLoop?.();
+  wakeLoop = null;
+}
+
+function startFrameLoop(): void {
+  const gen = ++loopGen;
+  const alive = () => gen === loopGen && stream !== null;
   // Not in every browser (older Firefox) even though lib.dom declares it.
   if (typeof (video as { requestVideoFrameCallback?: unknown }).requestVideoFrameCallback === 'function') {
-    video.requestVideoFrameCallback((_now, meta) => onVideoFrame(meta.captureTime));
+    const watch = () => {
+      if (!alive()) return;
+      video.requestVideoFrameCallback((_now, meta) => {
+        onNewVideoFrame(meta.captureTime);
+        watch();
+      });
+    };
+    watch();
   } else {
-    // Fallback: poll on rAF and only process when the video advanced.
+    // Fallback: poll on rAF and flag when the video advanced.
     let lastTime = -1;
     const poll = () => {
-      if (mode !== 'camera') return;
+      if (!alive()) return;
       if (video.currentTime !== lastTime) {
         lastTime = video.currentTime;
-        onVideoFrame(undefined);
-      } else requestAnimationFrame(poll);
+        onNewVideoFrame(undefined);
+      }
+      requestAnimationFrame(poll);
     };
     requestAnimationFrame(poll);
   }
+  void (async () => {
+    while (alive()) {
+      if (!frameReady) {
+        await new Promise<void>((r) => (wakeLoop = r));
+        continue;
+      }
+      frameReady = false;
+      if (mode === 'camera') await onVideoFrame(frameCapture);
+    }
+  })();
 }
 
-const toP4 = (p: { x: number; y: number; z: number; visibility?: number }): P4 => [p.x, p.y, p.z, p.visibility ?? 0];
 
 async function onVideoFrame(captureTime: number | undefined): Promise<void> {
   if (mode !== 'camera' || !landmarker) return;
@@ -219,11 +254,12 @@ async function onVideoFrame(captureTime: number | undefined): Promise<void> {
   lastTs = ts;
   let frame: PoseFrame;
   try {
-    const t0 = performance.now();
-    const res = landmarker.detectForVideo(video, ts);
+    // In a worker (see poseWorker.ts) the main thread is free while this waits.
+    const res = await landmarker.detect(video, ts);
+    if (mode !== 'camera') return;
     const t1 = performance.now();
-    lastInferMs = t1 - t0;
-    inferMs = Number.isNaN(inferMs) ? t1 - t0 : inferMs * 0.9 + (t1 - t0) * 0.1;
+    lastInferMs = res.inferMs;
+    inferMs = Number.isNaN(inferMs) ? res.inferMs : inferMs * 0.9 + res.inferMs * 0.1;
     if (typeof captureTime === 'number' && captureTime > 0) {
       latencySupported = true;
       const l = t1 - captureTime;
@@ -231,8 +267,8 @@ async function onVideoFrame(captureTime: number | undefined): Promise<void> {
     } else if (latencySupported === null) latencySupported = false;
     frame = {
       t: ts,
-      lm: res.landmarks[0]?.map(toP4) ?? null,
-      wl: res.worldLandmarks[0]?.map(toP4) ?? null,
+      lm: res.lm,
+      wl: res.wl,
     };
   } catch (e) {
     console.error('detectForVideo failed', e);
@@ -253,7 +289,6 @@ async function onVideoFrame(captureTime: number | undefined): Promise<void> {
     } else {
       showBanner(`추론 오류: ${e instanceof Error ? e.message : String(e)}`);
     }
-    scheduleVideoFrame();
     return;
   }
   countFps();
@@ -269,7 +304,6 @@ async function onVideoFrame(captureTime: number | undefined): Promise<void> {
   }
   gameWasPlaying = game.playing;
   processFrame(frame);
-  scheduleVideoFrame();
 }
 
 function countFps(): void {
