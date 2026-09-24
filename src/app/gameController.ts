@@ -92,6 +92,8 @@ export class GameController {
   private lastFx = 0;
   /** ms between display frames during play — where the stutter shows up */
   private renderGaps: number[] = [];
+  /** the finished game (showResults clears `session`), kept for "이번 판 기록 저장" */
+  private lastGame: GameSession | null = null;
   private lastFrameAt = 0;
   private guardHistory: { t: number; ok: Record<Side, boolean> }[] = [];
   private hands: Record<Side, HandInput | null> = { left: null, right: null };
@@ -138,7 +140,8 @@ export class GameController {
 
   /** The last game's schedule, judgements and display frame gaps, for the in-game recording. */
   gameLog(): { session: GameSession; renderGapsMs: number[] } | null {
-    return this.session ? { session: this.session, renderGapsMs: this.renderGaps } : null;
+    const g = this.session ?? this.lastGame;
+    return g ? { session: g, renderGapsMs: this.renderGaps } : null;
   }
 
   // ---------------------------------------------------------------- menu
@@ -703,6 +706,7 @@ export class GameController {
         `<span class="pct">${r.s.perfect + r.s.good}/${r.s.attempts}</span></div>`)
       .join('');
     $('rWeak').textContent = weakest && weakest.pct < 0.8 ? `약점: ${weakest.n}번 ${PUNCH_NAMES[weakest.n]} — 다음엔 이 펀치를 더 연습해 봐요` : '';
+    this.lastGame = g;
     this.session = null;
   }
 }
