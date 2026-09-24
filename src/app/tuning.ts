@@ -1,9 +1,15 @@
 import { PARAM_DEFS, defaultParams, sanitizeParams, type ParamKey, type Params } from '../core/params';
 
-const STORAGE_KEY = 'shadowmitts.params.v1';
+// v1 stored EVERY value once any slider moved, so later default changes never reached that
+// browser (the play-tester's game still ran punchMaxRiseMs 350 after the default became 480; a
+// replay with 350 matched the live judgements 34/34). v2 stores only values that differ from the
+// defaults; v1 is dropped once.
+const STORAGE_KEY = 'shadowmitts.params.v2';
+const OLD_KEYS = ['shadowmitts.params.v1'];
 
 export function loadParams(): Params {
   try {
+    for (const k of OLD_KEYS) localStorage.removeItem(k);
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? sanitizeParams(JSON.parse(raw)) : defaultParams();
   } catch {
@@ -11,9 +17,17 @@ export function loadParams(): Params {
   }
 }
 
+/** Only the values the player changed, so untouched ones follow future defaults. */
+export function changedParams(p: Params): Partial<Params> {
+  const d = defaultParams();
+  const out: Partial<Params> = {};
+  for (const def of PARAM_DEFS) if (p[def.key] !== d[def.key]) out[def.key] = p[def.key];
+  return out;
+}
+
 function saveParams(p: Params): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(changedParams(p)));
   } catch {
     // Storage unavailable (private mode etc.) — sliders still work for this session.
   }

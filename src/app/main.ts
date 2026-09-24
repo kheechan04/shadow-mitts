@@ -7,7 +7,7 @@ import { FeatureGraph } from './graph';
 import { loadLandmarker, type Delegate, type ModelVariant, type PoseDetector } from './landmarker';
 import { drawOverlay } from './overlay';
 import { PunchUi } from './punchUi';
-import { buildTuningPanel, loadParams } from './tuning';
+import { buildTuningPanel, changedParams, loadParams } from './tuning';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -386,6 +386,9 @@ function saveGameRecording(): void {
     difficulty: g.cfg.difficulty,
     latencyOffsetMs: g.cfg.latencyOffsetMs,
     lenientKind: g.cfg.lenientKind,
+    // recognition settings in effect (only those changed from the defaults of this build)
+    paramsChanged: changedParams(params),
+    params: { ...params },
     mitts: g.mitts.map((m) => ({
       n: m.n, side: m.side, kind: m.kind, tHit: Math.round(m.tHit - t0), holdUntil: Math.round(m.holdUntil - t0),
       grade: m.judgement?.grade ?? null, dtMs: m.judgement ? Math.round(m.judgement.dtMs) : null,

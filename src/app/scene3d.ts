@@ -525,7 +525,7 @@ export class GameScene {
     this.shake = { amp: 0, at: 0 };
   }
 
-  private makeView(m: Mitt, stance: Stance): MittView {
+  private makeView(m: Mitt, stance: Stance, repeat = false): MittView {
     const p = presentation(m.n, stance);
     const target = new THREE.Vector3(p.x, p.y, HIT_Z);
     const sx = Math.sign(p.x) || 1;
@@ -541,6 +541,19 @@ export class GameScene {
     } else {
       start = new THREE.Vector3(p.x * 0.3, p.y + 0.15, -10);
       control = new THREE.Vector3(p.x * 0.8, p.y + 0.05, HIT_Z - 3);
+    }
+    if (repeat) {
+      // same target, different approach: straights and uppercuts swing in from the outside and
+      // above, hooks drop in from above
+      if (m.kind === 'hook') {
+        start.y += 1.6;
+        control.y += 0.7;
+      } else {
+        start.x += sx * 2.6;
+        start.y += 0.9;
+        control.x += sx * 1.1;
+        control.y += 0.35;
+      }
     }
     const group = buildMitt(m.n, m.side, this.bump);
     group.scale.setScalar(MITT_SCALE);
@@ -664,13 +677,13 @@ export class GameScene {
         // judged view was retired, this used to rebuild it as a fresh unjudged mitt for a few
         // frames — the long-standing "잔상" / "갑자기 나타남" (found with a frame-by-frame trace).
         if (m.judgement || now >= m.holdUntil) continue;
-        // One mitt per spot: while an earlier mitt with the same number is still on screen, this one
-        // stays unseen (still moving on the clock) and grows in once that one is gone — a copy
-        // trailing on the same path read as "같은 자리에 또 나옴" / an afterimage.
-        let blocked = false;
-        for (const o of this.views.values()) if (o.mitt.n === m.n && o.mitt.tHit < m.tHit) blocked = true;
-        if (blocked) continue;
-        v = this.makeView(m, stance);
+        // A repeat (2-3-2, 1-1 …) while the earlier mitt of that number is still out: fly in on a
+        // path swung off to the side, visible the whole way. Hidden behind the first on the same
+        // path it read as "같은 자리에 또 나옴"; held back and popped in once the first was gone it
+        // read as "친 게 또 뜬다" (second game recording: those repeats were missed 4 of 6 times).
+        let repeat = false;
+        for (const o of this.views.values()) if (o.mitt.n === m.n && o.mitt.tHit < m.tHit) repeat = true;
+        v = this.makeView(m, stance, repeat);
         v.bornAt = now;
         this.views.set(m.id, v);
       }
