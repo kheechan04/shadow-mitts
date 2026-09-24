@@ -21,6 +21,7 @@ h1 span { color: var(--ink); -webkit-text-stroke: 0; }
 .count { position: absolute; inset: 0; display: grid; place-items: center; font-family: 'Black Han Sans', sans-serif; font-size: 120px; color: #fff; -webkit-text-stroke: 3px var(--ink); pointer-events: none; }
 .status { position: absolute; left: 10px; bottom: 10px; background: rgba(255, 255, 255, 0.92); color: var(--ink); padding: 4px 10px; border-radius: 999px; font-size: 14px; }
 .buttons { display: flex; flex-direction: column; gap: 10px; }
+.cam-select { font: inherit; font-size: 15px; padding: 8px 10px; border-radius: 12px; border: 3px solid var(--ink); background: #fff; color: var(--ink); max-width: 260px; }
 .btn { font: inherit; font-size: 18px; padding: 12px 20px; border-radius: 14px; border: 3px solid var(--ink); background: #fff; color: var(--ink); cursor: pointer; box-shadow: 0 4px 0 var(--ink); }
 .btn.primary { background: var(--red); color: #fff; }
 .btn.ghost { background: #f1f5f9; }

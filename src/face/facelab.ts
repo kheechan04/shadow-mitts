@@ -36,15 +36,62 @@ let cropLm: Pt[] | null = null;
 
 // ---------------------------------------------------------------- camera
 
+// The game remembers the camera that works on this PC (play-test: the default one timed out, the
+// "LG Camera" worked). Read that choice — only the device id, nothing about the face.
+const CAMERA_KEY = 'shadowmitts.camera.v1';
+
+async function fillCameraList(): Promise<void> {
+  const sel = $<HTMLSelectElement>('camera');
+  let want = sel.value;
+  if (!want) {
+    try {
+      want = localStorage.getItem(CAMERA_KEY) ?? '';
+    } catch {
+      want = '';
+    }
+  }
+  let devices: MediaDeviceInfo[] = [];
+  try {
+    devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
+  } catch {
+    return;
+  }
+  sel.textContent = '';
+  sel.append(new Option('기본 카메라', ''));
+  devices.forEach((d, i) => sel.append(new Option(d.label || `카메라 ${i + 1}`, d.deviceId)));
+  if ([...sel.options].some((o) => o.value === want)) sel.value = want;
+}
+
+async function openCamera(): Promise<MediaStream> {
+  const id = $<HTMLSelectElement>('camera').value;
+  const device = id ? { deviceId: { exact: id } } : { facingMode: 'user' };
+  try {
+    return await navigator.mediaDevices.getUserMedia({ video: { ...device, width: { ideal: 1280 }, height: { ideal: 960 } }, audio: false });
+  } catch (e) {
+    // same as the game: some Windows drivers time out on size hints — retry with just the device
+    if (e instanceof Error && e.name === 'NotAllowedError') throw e;
+    return navigator.mediaDevices.getUserMedia({ video: id ? device : true, audio: false });
+  }
+}
+
+function cameraHint(e: unknown): string {
+  const name = e instanceof Error ? e.name : '';
+  if (name === 'NotAllowedError') return '카메라 권한이 막혀 있어요. 주소창 왼쪽 아이콘에서 카메라를 "허용"으로 바꾸고 새로고침해 주세요';
+  if (name === 'NotReadableError' || name === 'AbortError') return '카메라를 열지 못했어요. 게임 탭이나 다른 프로그램이 카메라를 쓰고 있으면 끄고, 위 목록에서 다른 카메라(예: LG Camera)를 골라 보세요';
+  if (name === 'NotFoundError' || name === 'OverconstrainedError') return '카메라를 찾지 못했어요. 위 목록에서 다른 카메라를 골라 보세요';
+  return `카메라를 켜지 못했어요 (${e instanceof Error ? e.message : String(e)})`;
+}
+
 async function startCamera(): Promise<void> {
   status('카메라 켜는 중…');
-  stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 960 }, facingMode: 'user' }, audio: false });
+  stream = await openCamera();
   video.srcObject = stream;
   await video.play();
   video.hidden = false;
   shot.hidden = true;
   $<HTMLButtonElement>('snapBtn').disabled = false;
   status('얼굴이 가운데 오게 하고 정면을 봐 주세요');
+  void fillCameraList(); // names show up once permission is granted
 }
 
 function stopCamera(): void {
@@ -374,11 +421,14 @@ function clearAll(): void {
 $('camBtn').addEventListener('click', () => {
   $<HTMLButtonElement>('camBtn').disabled = true;
   startCamera().catch((e) => {
-    status(`카메라를 켜지 못했어요: ${e instanceof Error ? e.message : String(e)}`);
+    stopCamera();
+    status(cameraHint(e));
     $<HTMLButtonElement>('camBtn').disabled = false;
+    void fillCameraList();
   });
 });
 $('snapBtn').addEventListener('click', () => void countdownAndShoot());
+void fillCameraList();
 $('clearBtn').addEventListener('click', clearAll);
 $('strength').addEventListener('input', renderAll);
 $('overlays').addEventListener('change', renderAll);
