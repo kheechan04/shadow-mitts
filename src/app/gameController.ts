@@ -727,7 +727,8 @@ export class GameController {
     $('hTime').textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
 
     if (ph.phase === 'countdown') {
-      this.setBig(`${Math.ceil(ph.msLeft / 1000)}`, true);
+      // play-test: players guessed that guarding mattered — say how (it adds points, never blocks a hit)
+      this.setBig(`${Math.ceil(ph.msLeft / 1000)}<small>🛡 안 치는 손은 턱 앞에! 가드 올리면 점수 +20%</small>`, true);
     } else if (ph.phase === 'round' && now - g.roundStart(ph.round) < 800) {
       this.setBig(ph.round === 0 ? 'FIGHT!' : `ROUND ${ph.round + 1}`, true);
     } else if (now < this.comboBanner.until) {
