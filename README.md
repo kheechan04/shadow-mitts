@@ -72,6 +72,7 @@ npm run dev          # → http://localhost:5173  (Chrome 권장)
 ## 기술 스택
 
 - **포즈 인식**: MediaPipe Pose Landmarker (`@mediapipe/tasks-vision`, lite 모델), **Web Worker에서 CPU 추론**(GPU는 옵션)
+  — 왜 YOLO가 아니라 MediaPipe인지: [docs/MODEL-CHOICE.md](docs/MODEL-CHOICE.md)
 - **얼굴**: MediaPipe Face Landmarker 좌표 + Delaunay 메시 워프(WebGL) — 생성형 AI 없음
 - **배포**: Vercel(정적 호스팅, push 시 자동 배포) + PWA(서비스 워커로 게임·모델 파일 캐시, 오프라인 실행)
 - **3D**: three.js (절차적 모델링, 그림자, ACES 톤매핑)
