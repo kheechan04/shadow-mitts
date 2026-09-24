@@ -62,11 +62,16 @@ const CONFETTI = ['#e11d2e', '#fbbf24', '#22d3ee', '#34d399', '#a78bfa', '#fb923
 const COMBO_SHOUTS = ['나이스!', '대박!', '미쳤다!', '좋아요!', '계속 가자!', '최고예요!'];
 const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 
+/** Below this the camera status warns (punch recognition drops sharply under ~20 fps). */
+const SLOW_FPS = 20;
+
 export interface GameDeps {
   params: () => Params;
   stance: () => Stance;
   setStance: (s: Stance) => void;
   cameraRunning: () => boolean;
+  /** pose detections per second (NaN until measured) */
+  detectFps: () => number;
   notify: (msg: string) => void;
 }
 
@@ -287,8 +292,12 @@ export class GameController {
         this.hands[s] = a.valid ? { imgX: (s === 'left' ? -1 : 1) * a.rel[0], up: a.rel[1], speed: a.speed2d } : null;
       }
       this.handsAt = now;
-      st.textContent = features.upperBodyInFrame ? '준비 완료 ✓' : '상체가 다 보이게 조금 뒤로';
-      st.className = `cam-status ${features.upperBodyInFrame ? 'ok' : 'warn'}`;
+      // Webcams drop to ~15 fps in dim rooms, and quick punches then span only 2–3 frames.
+      const fps = this.deps.detectFps();
+      const slow = Number.isFinite(fps) && fps < SLOW_FPS;
+      st.textContent = !features.upperBodyInFrame ? '상체가 다 보이게 조금 뒤로'
+        : slow ? `인식 느림 (${Math.round(fps)}fps) · 방을 더 밝게` : '준비 완료 ✓';
+      st.className = `cam-status ${features.upperBodyInFrame && !slow ? 'ok' : 'warn'}`;
     } else {
       this.hands = { left: null, right: null };
       st.textContent = '사람이 안 보여요';

@@ -62,9 +62,25 @@ describe.skipIf(!guard)('world/image axis conventions (guard recording)', () => 
 // ---------------------------------------------------------------- M1 recognition regression floors
 // Floors sit a little below the measured numbers (see README) so tuning can move things, but a
 // real regression fails loudly. Update them deliberately when the data or the defaults change.
-// Measured (17 southpaw recordings, 155 punches, default params): hand 140/155, extra 9,
-// no-punch false 0, number 136/155 (incl. small uppercuts at ~15 fps).
-const FLOORS = { hand: 0.88, extraRate: 0.1, number: 0.83, noPunchFalse: 1 };
+// Measured (19 southpaw recordings, 175 punches, default params): hand 165/175, extra 12,
+// no-punch false 0, number 160/175 (incl. small uppercuts and hooks at ~15 fps).
+const FLOORS = { hand: 0.9, extraRate: 0.1, number: 0.86, noPunchFalse: 1 };
+// Same recordings thinned to 15 fps (what a webcam in a dim room delivers): hand 154/175,
+// number 144/175. Before the frame-rate-aware speed rule this was 100/175.
+const FLOORS_15FPS = { hand: 0.83, extraRate: 0.05, number: 0.78, noPunchFalse: 0 };
+
+/** Keep at most `fps` frames per second, like a slower camera would have delivered. */
+function thin(rec: Recording, fps: number): Recording {
+  let last = -Infinity;
+  let skip = 1; // start one frame in, so the thinned frames aren't aligned with the original first frame
+  const frames = rec.frames.filter((f) => {
+    if (f.t - last < 1000 / fps - 2) return false;
+    if (skip-- > 0) return false;
+    last = f.t;
+    return true;
+  });
+  return { ...rec, frames };
+}
 
 function loadAll(): Recording[] {
   if (!existsSync(DIR)) return [];
@@ -92,5 +108,20 @@ describe.skipIf(all.length === 0)('punch recognition on real recordings', () => 
   });
   it('orthodox (mirrored) data scores exactly the same', () => {
     expect(scoreRecordings(all.map(mirrorRecording), defaultParams())).toEqual(score);
+  });
+});
+
+describe.skipIf(all.length === 0)('punch recognition at 15 fps', () => {
+  const score = scoreRecordings(all.map((r) => thin(r, 15)), defaultParams());
+
+  it('no punches while holding guard or turning the torso', () => {
+    expect(score.noPunchFalse).toBeLessThanOrEqual(FLOORS_15FPS.noPunchFalse);
+  });
+  it('still finds most punches', () => {
+    expect(score.detected / score.expected).toBeGreaterThanOrEqual(FLOORS_15FPS.hand);
+    expect(score.kindCorrect / score.expected).toBeGreaterThanOrEqual(FLOORS_15FPS.number);
+  });
+  it('extra detections stay rare', () => {
+    expect(score.extra / score.expected).toBeLessThanOrEqual(FLOORS_15FPS.extraRate);
   });
 });

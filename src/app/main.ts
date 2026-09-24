@@ -41,6 +41,7 @@ const game = new GameController({
     sel.dispatchEvent(new Event('change'));
   },
   cameraRunning: () => mode === 'camera',
+  detectFps: () => fps,
   notify: (msg) => showBanner(msg),
 });
 // dev-only handle for automated visual checks (stripped from production builds)

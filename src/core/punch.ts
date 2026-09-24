@@ -73,6 +73,8 @@ class ArmDetector {
   private state: State = 'idle';
   private guard: V2 | null = null;
   private prevT = 0;
+  /** smoothed frame interval, s (0 = unknown) */
+  private dtAvg = 0;
   private prevDisp = 0;
   private origin: V2 = [0, 0];
   private startT = 0;
@@ -107,6 +109,7 @@ class ArmDetector {
     }
     const pos: V2 = [a.rel[0], a.rel[1]];
     const dt = this.prevT ? (t - this.prevT) / 1000 : 0;
+    if (dt > 0 && dt < 0.2) this.dtAvg = this.dtAvg ? this.dtAvg + 0.1 * (dt - this.dtAvg) : dt;
     if (!this.guard) this.guard = [...pos];
 
     const ref = this.state === 'idle' ? this.guard : this.origin;
@@ -183,7 +186,16 @@ class ArmDetector {
           // hand drifts inward-and-down slowly, so going down demands a higher speed.
           // After a dip (uppercut drive) the slow-drift rule doesn't apply: drifting guard hands
           // don't dip first, and small uppercuts at ~15 fps peaked at only 1.4–3 T/s.
-          const minSpeed = this.dipped ? p.dipDriveMinSpeed : delta[1] < 0 ? p.punchDownMinSpeed : p.punchMinPeakSpeed;
+          // Only a mostly-downward peak needs that speed: hooks end sweeping slightly down, and at
+          // 15 fps their measured speed (3.4–3.9 T/s) fell just under the old "any downward" rule.
+          // Small twitches keep the strict rule (a 0.1 T guard twitch slipped through otherwise).
+          const bigSweep = this.peak.disp >= 2 * p.punchMinExtent;
+          const mostlyDown = delta[1] < 0 && (!bigSweep || -delta[1] > p.punchDownFrac * this.peak.disp);
+          // Sparse frames under-measure peak speed (webcams drop to 15 fps in dim rooms; 60 fps
+          // recordings thinned to 15 fps lost 40% of punches): scale the bar down from 30 to 15 fps.
+          const sparse = Math.min(1, Math.max(0, (this.dtAvg - 1 / 30) / (1 / 15 - 1 / 30)));
+          const speedScale = 1 - sparse * (1 - p.lowFpsSpeedScale);
+          const minSpeed = speedScale * (this.dipped ? p.dipDriveMinSpeed : mostlyDown ? p.punchDownMinSpeed : p.punchMinPeakSpeed);
           const isPunch =
             this.peak.disp >= p.punchMinExtent &&
             delta[1] >= -p.punchMaxDown &&

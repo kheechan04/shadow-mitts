@@ -381,10 +381,10 @@ interface MittView {
   grade: Judgement['grade'] | null;
   /** materials that light up on impact */
   glowMats: THREE.MeshStandardMaterial[];
-  /** every material of the mitt body, for fading */
-  mats: THREE.Material[];
-  /** current opacity (eased toward its target each frame) */
-  opacity: number;
+  /** when this mitt became the one to hit (null = still waiting its turn) */
+  activeAt: number | null;
+  /** path progress it was held at while waiting */
+  fromK: number;
 }
 
 /**
@@ -400,25 +400,13 @@ const IMPACT: Record<Judgement['grade'], { shake: number; sparks: number; flash:
 
 interface Spark { sprite: THREE.Sprite; vel: THREE.Vector3; at: number; life: number }
 
-/** A hit or missed mitt disappears this fast, so it can't be mistaken for the next one. */
-const JUDGED_FADE_MS = 260;
-
-/** Ease a mitt toward an opacity; instant skips easing (used while vanishing). */
-function setOpacity(v: MittView, target: number, instant = false): void {
-  v.opacity = instant ? target : v.opacity + (target - v.opacity) * 0.4;
-  const see = v.opacity < 0.995;
-  for (const m of v.mats) {
-    // decals (the number sticker) are always transparent; only the solid parts get toggled
-    const base = (m.userData.baseTransparent ??= m.transparent) as boolean;
-    const want = see || base;
-    if (m.transparent !== want) {
-      m.transparent = want;
-      m.needsUpdate = true;
-    }
-    m.opacity = v.opacity;
-    m.depthWrite = !see && (m.userData.baseDepthWrite ??= m.depthWrite) as boolean;
-  }
-}
+/**
+ * Play-test "잔상" (fast combos: which mitt is real?). Moving, fading or see-through copies all
+ * read as afterimages, so: a judged mitt pops and is gone in this time, right where it was hit.
+ */
+const JUDGED_POP_MS = 160;
+/** Later mitts of a combo wait far back along their path, solid, until it's their turn. */
+const WAIT_K = 0.3;
 interface Wave { mesh: THREE.Mesh; at: number; size: number }
 
 export interface HandInput {
@@ -455,12 +443,13 @@ export class GameScene {
 
   constructor(canvas: HTMLCanvasElement, backdropUrl: string) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    // kept light: the pose model shares the GPU, and its frame rate matters more than crisp edges
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
     this.scene.background = new THREE.Color(0xf1ece4);
     this.scene.fog = new THREE.Fog(0xf1ece4, 16, 34);
@@ -585,13 +574,11 @@ export class GameScene {
     ghost.add(ring);
     this.scene.add(ghost);
     const glowMats: THREE.MeshStandardMaterial[] = [];
-    const mats: THREE.Material[] = [];
     group.traverse((o) => {
       const mat = (o as THREE.Mesh).material;
-      if (mat instanceof THREE.Material) mats.push(mat);
       if (mat instanceof THREE.MeshStandardMaterial) glowMats.push(mat);
     });
-    return { mitt: m, group, ghost, ring, target, start, control, judgedAt: null, grade: null, glowMats, mats, opacity: 1 };
+    return { mitt: m, group, ghost, ring, target, start, control, judgedAt: null, grade: null, glowMats, activeAt: null, fromK: 0 };
   }
 
   /** A punch was detected: throw that glove (toward its mitt when it hit one). */
@@ -666,14 +653,13 @@ export class GameScene {
       this.renderer.render(this.scene, this.camera);
       return;
     }
-    // Only the mitt to hit right now is fully solid; the rest of a combo waits see-through, and
-    // judged mitts vanish fast. (Play-test: in fast combos "잔상" made it unclear which mitt was real.)
+    // One mitt at a time, like a pad holder: only the mitt to hit now comes all the way in.
     const current = mitts.find((m) => !m.judgement && !(this.views.get(m.id)?.judgedAt != null));
     // create / update / retire mitts
     for (const m of mitts) {
       const since = now - (m.tHit - approachMs);
       let v = this.views.get(m.id);
-      const done = v?.judgedAt != null ? now - v.judgedAt > JUDGED_FADE_MS : now > m.tHit + lateMs + 500;
+      const done = v?.judgedAt != null ? now - v.judgedAt > JUDGED_POP_MS : now > m.tHit + lateMs + 500;
       if (since < 0 || done) {
         if (v && done) {
           this.scene.remove(v.group, v.ghost);
@@ -688,8 +674,19 @@ export class GameScene {
       const k = since / approachMs;
       if (v.judgedAt === null) {
         const held = now - m.tHit;
-        if (k <= 1) {
-          const u = k;
+        const isCurrent = m === current;
+        if (isCurrent && v.activeAt === null) {
+          v.activeAt = now;
+          v.fromK = Math.min(k, WAIT_K);
+        }
+        // waiting: parked at WAIT_K (even past its time); current: catches up from where it was
+        // parked so it still arrives exactly at tHit
+        let u = Math.min(k, WAIT_K);
+        if (v.activeAt !== null) {
+          const span = m.tHit - v.activeAt;
+          u = span > 0 && v.fromK < k ? v.fromK + (1 - v.fromK) * Math.min(1, (now - v.activeAt) / span) : Math.min(1, k);
+        }
+        if (v.activeAt === null || u < 1) {
           // quadratic Bezier start → control → target
           const a = v.start.clone().multiplyScalar((1 - u) * (1 - u));
           const b = v.control.clone().multiplyScalar(2 * (1 - u) * u);
@@ -700,38 +697,27 @@ export class GameScene {
           const w = Math.sin(held / 90) * 0.006;
           v.group.position.copy(v.target).add(new THREE.Vector3(w, w * 0.5, 0));
         } else {
-          // time's up: pulled back out of reach
-          const back = Math.min(1, (held - holdMs) / 300);
-          v.group.position.copy(v.target).add(new THREE.Vector3(0, -0.1 * back, -1.2 * back));
+          // time's up: shrinks away in place (sliding back read as an afterimage)
+          const gone = Math.min(1, (held - holdMs) / JUDGED_POP_MS);
+          v.group.position.copy(v.target);
+          v.group.scale.setScalar(MITT_SCALE * Math.max(0.01, 1 - gone));
         }
         // the timing ring appears halfway and closes onto the mitt outline exactly at the hit
         const r = Math.min(1, Math.max(0, (1 - k) / 0.5));
-        const isCurrent = m === current;
         v.ring.visible = isCurrent && k > 0.45;
         v.ring.scale.setScalar(1 + 1.3 * r);
         (v.ring.material as THREE.MeshBasicMaterial).color.set(k >= 0.97 ? 0xfbbf24 : 0xffffff);
         v.ghost.visible = isCurrent && k > 0.5 && k < 1.05;
-        const pulledBack = held > holdMs ? Math.min(1, (held - holdMs) / 300) : 0;
-        setOpacity(v, (isCurrent ? 1 : 0.4) * (1 - pulledBack));
       } else {
-        const age = Math.min(1, (now - v.judgedAt) / JUDGED_FADE_MS);
-        setOpacity(v, 1 - age, true);
+        // pops where it was hit (a quick squash-and-swell), then it's simply gone; a miss just shrinks
+        const age = Math.min(1, (now - v.judgedAt) / JUDGED_POP_MS);
         v.ghost.visible = false;
-        if (v.grade === 'miss') {
-          // drops away instead of flying at the camera
-          v.group.position.y -= 0.012;
-          v.group.rotation.z += 0.04;
-        } else {
-          // knocked back along the face normal
-          const normal = new THREE.Vector3(0, 0, 1).applyEuler(v.group.rotation);
-          v.group.position.copy(v.target).addScaledVector(normal, -0.45 * Math.sin(age * Math.PI * 0.5));
-          v.group.rotation.x += 0.02;
-          // squash on impact, then spring back
-          const squash = age < 0.4 ? 1 - 0.35 * Math.sin((age / 0.4) * Math.PI) : 1;
-          v.group.scale.set(MITT_SCALE * (1 + (1 - squash) * 0.5), MITT_SCALE * (1 + (1 - squash) * 0.5), MITT_SCALE * squash);
-          for (const m of v.glowMats) m.emissiveIntensity *= 0.9;
+        v.ring.visible = false;
+        if (v.grade === 'miss') v.group.scale.setScalar(MITT_SCALE * Math.max(0.01, 1 - age));
+        else {
+          const swell = age < 0.35 ? 1 + 0.3 * Math.sin((age / 0.35) * Math.PI * 0.5) : 1.3 * (1 - (age - 0.35) / 0.65);
+          v.group.scale.set(MITT_SCALE * swell, MITT_SCALE * swell, MITT_SCALE * swell * 0.7);
         }
-        if (v.grade === 'miss') v.group.scale.setScalar(MITT_SCALE * Math.max(0.01, 1 - age * 0.6));
       }
     }
 
@@ -745,8 +731,12 @@ export class GameScene {
         // play-test: "글러브가 찔끔찔끔 움직여" — follow the wrist at about 2× the old gain
         rest.x = THREE.MathUtils.clamp(-h.imgX * 1.15, -0.95, 0.95);
         rest.y = 1.08 + THREE.MathUtils.clamp(h.up, -1.2, 1.2) * 0.75; // guard (up ≈ 0.2) → ~1.23, in view
-        // fast hands push the glove out right away (depth itself isn't measurable from a webcam)
-        rest.z -= THREE.MathUtils.clamp((h.speed - 1) * 0.12, 0, 0.55);
+        // fast hands push the glove out right away (depth itself isn't measurable from a webcam) —
+        // but only the clearly faster hand: a punch turns the torso and drags the other wrist
+        // along, which made the wrong glove jab (play-test: "오른손 어퍼컷에 왼손이 찔끔 크로스").
+        const other = hands[s === 'left' ? 'right' : 'left'];
+        // Measured on the recordings: wrong-glove pushes 121 → 22 of 216 punches with this gate.
+        if (h.speed > 2.5 && (!other || h.speed > other.speed * 2.5)) rest.z -= THREE.MathUtils.clamp((h.speed - 1) * 0.12, 0, 0.55);
       }
       let goal = rest;
       const th = this.thrust[s];
@@ -792,14 +782,14 @@ export class GameScene {
       s.sprite.material.opacity = 1 - age;
     }
     for (const w of [...this.waves]) {
-      const age = (now - w.at) / 380;
+      const age = (now - w.at) / 220; // short: a lingering ring read as an afterimage
       if (age >= 1) {
         this.scene.remove(w.mesh);
         this.waves.splice(this.waves.indexOf(w), 1);
         continue;
       }
       w.mesh.scale.setScalar(1 + age * 2.2 * w.size);
-      (w.mesh.material as THREE.MeshBasicMaterial).opacity = 0.9 * (1 - age);
+      (w.mesh.material as THREE.MeshBasicMaterial).opacity = 0.9 * (1 - age) * (1 - age);
     }
 
     // camera shake (decays over ~250 ms) and a small zoom kick on PERFECT
