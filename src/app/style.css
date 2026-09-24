@@ -562,3 +562,12 @@ table.arms th:first-child, table.arms td:first-child { text-align: left; color: 
   .gbtn.start { margin-top: 18px; }
   .safety { margin-top: 14px; line-height: 1.5; }
 }
+
+@media (min-width: 901px) {
+  /* pulled toward the menu (--mc-left from alignMenuCam); right edge used until it's measured */
+  .stage[data-screen='menu'] .cam-box { left: var(--mc-left, auto); }
+  /* the face row sat against the chunky "켜기" button's drop edge above it */
+  .face-row { margin-top: 16px; }
+  /* room above the bobbing logo so "SHADOW" isn't clipped at the top of the scrolling panel */
+  .menu-panel { padding-top: 26px; }
+}

@@ -255,6 +255,7 @@ export class GameController {
     if (this.screen !== 'menu' || !box || window.innerWidth <= 900) {
       stage.style.removeProperty('--mc-top');
       stage.style.removeProperty('--mc-w');
+      stage.style.removeProperty('--mc-left');
       return;
     }
     const st = stage.getBoundingClientRect();
@@ -270,8 +271,13 @@ export class GameController {
       const h = ((w - border) * 3) / 4 + border;
       top += (r.height - h) / 2;
     }
+    // pulled a little toward the menu (play-test: the gap looked too wide): keep 70 % of the gap
+    // it would have had against the right edge
+    const naturalLeft = st.right - rightPad - w;
+    const left = r.right + Math.max(gap, (naturalLeft - r.right) * 0.7);
     stage.style.setProperty('--mc-top', `${Math.round(top)}px`);
     stage.style.setProperty('--mc-w', `${Math.round(w)}px`);
+    stage.style.setProperty('--mc-left', `${Math.round(left - st.left)}px`);
   }
 
   private refreshMenu(): void {
