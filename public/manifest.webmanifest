@@ -1,0 +1,17 @@
+{
+  "name": "Shadow Mitts — 웹캠 하나로 미트 치기",
+  "short_name": "Shadow Mitts",
+  "description": "웹캠으로 날아오는 복싱 미트를 치는 게임. 영상과 얼굴은 브라우저 밖으로 나가지 않아요.",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#fff4d6",
+  "theme_color": "#e11d2e",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

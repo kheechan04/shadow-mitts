@@ -207,6 +207,19 @@ ES 모듈 WASM(`vision_wasm_module_internal.js`)을 고르며, GPU 그래프는 
 - **결과 카드** (`app/resultCard.ts`): 1080×1350 PNG(SNS 세로형), 페이지 글꼴이 로드된 뒤 캔버스에 그림.
   칼로리 같은 근거 없는 추정치는 넣지 않음(DESIGN §5). 얼굴은 스위치가 켜져 있을 때만.
 
+## 6-3. 마감 (M5)
+
+- **처음 방문 체크리스트**: 카메라 켜짐 · 상체가 다 보임(`upperBodyInFrame`) · 인식 초당 20회 이상을 실시간으로 ✓. 메뉴 쪽만 어둡게 해서
+  오른쪽 카메라 화면을 보며 거리를 맞춘다. 생성자 안에서 fps를 읽으면 main.ts의 `let fps`가 아직 초기화 전(TDZ)이라 페이지 전체가 멈췄다 —
+  생성 직후(`setTimeout 0`)에 연다.
+- **접근성**: `prefers-reduced-motion`이면 흔들림·번쩍임 기본 끔 + 장식 애니메이션 정지, 키보드 포커스 테두리. 소리/흔들림 끄기는 M3부터.
+- **PWA**: `public/manifest.webmanifest`, 아이콘(헤드리스 크롬으로 렌더), `public/sw.js`(수작업). 페이지는 network-first(새 배포가 다음 접속에 바로 반영),
+  해시 파일명 빌드 산출물과 버전 고정 CDN(WASM·모델)은 cache-first, 글꼴은 stale-while-revalidate. 프로덕션 빌드에서만 등록.
+  포즈 모델 URL을 `float16/latest` → `float16/1`로 고정(같은 바이트 확인)해서 캐시가 몰래 바뀌지 않게 함.
+  검증(vite preview + 헤드리스): 설치 가능 오류 0, 캐시에 게임·글꼴·WASM·모델만, **오프라인에서 새로고침 → 카메라·추론까지 동작**.
+- **배포**: Vercel(`vercel.json`: `sw.js` no-cache, `/assets` 1년 immutable, nosniff·Referrer-Policy·Permissions-Policy camera=self).
+  GitHub Pages 워크플로는 주소가 둘이 되지 않게 삭제.
+
 ## 7. 테스트와 튜닝
 
 ```bash
@@ -262,3 +275,4 @@ npm run eval -- --mirror  # 좌우 반전 데이터까지
 | M4-a | 리액션 얼굴을 게임에: 메뉴에서 게임 카메라로 한 장 → 표정 5개, 오른쪽 위 고정 리액션 창(판정마다 교체, 1.3초 뒤 무표정), 10콤보 CRITICAL은 창이 모서리에서 커짐, 결과 화면 얼굴 | 맞은 자리에 띄우면 0.45초마다 화면이 어지러움 — 미트 길을 가리지 않는 고정 창으로 |
 | M4-a | 얼굴 없이 시작하면 한 번 묻기(기본은 "찍고 시작", "얼굴 없이"도 가능·다시 안 물음), 메뉴 줄 강조, 리액션 창 약 2배, CRITICAL 과장(더 크게·흔들림·빛줄기·무지개 글자, 1.1초 유지) | "찍는 버튼이 작아 건너뛸 것 같다", "멀리서 얼굴이 안 보인다", "CRITICAL 더 과장". 필수로는 하지 않음 — 얼굴 처리는 원하는 사람만(강요된 동의 방지) |
 | M4 | 적응형 출제(이동평균·가중치 0.6~3), 약점 리포트(이번 판+누적), 로컬 기록·최고 점수, 결과 카드 PNG(얼굴 선택) | DESIGN M4 |
+| M5 | 처음 방문 체크리스트, 움직임 줄이기 대응, PWA(오프라인 실행), Vercel 배포(Pages 워크플로 삭제), 포즈 모델 버전 고정 | DESIGN M5 + "localhost 말고 앱으로" |

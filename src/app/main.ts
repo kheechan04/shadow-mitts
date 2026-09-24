@@ -8,6 +8,7 @@ import { loadLandmarker, type Delegate, type ModelVariant, type PoseDetector } f
 import { drawOverlay } from './overlay';
 import { PunchUi } from './punchUi';
 import { buildTuningPanel, changedParams, loadParams } from './tuning';
+import { registerPwa } from './pwa';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -648,3 +649,5 @@ $<HTMLInputElement>('rpSeek').addEventListener('input', (ev) => {
 render();
 void refreshCameraList();
 if (!window.isSecureContext) showBanner('카메라는 HTTPS 또는 localhost에서만 동작합니다');
+
+registerPwa();
