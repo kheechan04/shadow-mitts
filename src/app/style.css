@@ -516,3 +516,37 @@ table.arms th:first-child, table.arms td:first-child { text-align: left; color: 
 .best-line:empty { display: none; }
 .best-line.new { color: var(--red); font-size: 20px; animation: pop 0.45s ease-out; }
 .card-row { margin-top: 12px; align-items: center; }
+
+/* ---------------------------------------------------------------- menu layout: wide, two columns (fits one screen) */
+@media (min-width: 901px) {
+  .menu-panel { width: min(880px, 58vw); padding: 14px 20px 14px 3.5vw; }
+  .stage[data-screen='menu'] .cam-box { right: 2.5vw; width: min(34vw, 600px); }
+  .logo-wrap { display: flex; align-items: flex-end; gap: 18px; margin-bottom: 10px; }
+  .logo-glove { position: static; order: 2; font-size: 44px; margin-bottom: 8px; }
+  .logo span { font-size: 22px; }
+  .logo b { font-size: 60px; }
+  .ribbon { margin: 0 0 10px; order: 3; font-size: 15px; }
+  .sunburst { left: calc(3.5vw + 140px); top: 70px; }
+  .menu-box { padding: 12px 16px 12px; }
+  .menu-cols { display: grid; grid-template-columns: 1.15fr 1fr; gap: 18px; }
+  .menu-col + .menu-col { border-left: 2px dashed rgba(30, 58, 138, 0.18); padding-left: 18px; }
+  .box-label { margin: 10px 0 5px; }
+  .box-label.first { margin-top: 2px; }
+  .menu-box .box-row.opts { flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 6px; }
+  .menu-box .box-row.opts.toggles { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 12px; }
+  .menu-box .box-row.timing { flex-wrap: wrap; }
+  .seg button, .diff button { padding-top: 8px; padding-bottom: 8px; }
+  .tip { margin-top: 10px; padding: 7px 12px; }
+  .gbtn.start { margin-top: 12px; padding: 11px; font-size: 30px; }
+  .safety { margin-top: 8px; }
+}
+@media (min-width: 901px) {
+  .menu-cols { grid-template-columns: 1.3fr 1fr; }
+  .diff button b, .diff small { white-space: nowrap; }
+  .diff button { padding-left: 8px; padding-right: 8px; column-gap: 6px; }
+}
+/* big screens: the menu was small with a lot of empty room — scale it up */
+@media (min-width: 1700px) and (min-height: 950px) {
+  .menu-panel { zoom: 1.2; }
+  .stage[data-screen='menu'] .cam-box { width: min(36vw, 720px); }
+}

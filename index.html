@@ -57,6 +57,8 @@
           </div>
 
           <div class="menu-box">
+            <div class="menu-cols">
+            <div class="menu-col">
             <div class="box-row cam-row">
               <span class="tag">📷 카메라</span>
               <select id="camera" class="select"><option value="">기본 카메라</option></select>
@@ -83,12 +85,14 @@
               <button data-diff="normal"><em>🥊</em><b>보통</b><small>3연타까지</small></button>
               <button data-diff="hard"><em>🔥</em><b>어려움</b><small>빠르게!</small></button>
             </div>
-
+            </div>
+            <div class="menu-col">
+            <div class="box-label first">게임 설정</div>
             <div class="box-row opts">
               <div class="chips" id="roundsSeg"><span>라운드</span><button data-v="1">1</button><button data-v="3">3</button></div>
               <div class="chips" id="lenSeg"><span>시간</span><button data-v="30">30초</button><button data-v="60">1분</button><button data-v="90">1분30</button></div>
             </div>
-            <div class="box-row opts">
+            <div class="box-row opts toggles">
               <label class="toggle"><input type="checkbox" id="gLenient" /><span></span>종류 틀려도 부분 점수</label>
               <label class="toggle"><input type="checkbox" id="gSound" /><span></span>소리</label>
               <label class="toggle"><input type="checkbox" id="gShake" /><span></span>흔들림·번쩍임</label>
@@ -101,10 +105,11 @@
               <button id="gCalibrate" class="gbtn mint small">자동 보정</button>
             </div>
             <p class="hint" id="gCalibMsg">처음 한 번 "자동 보정"을 하면 판정이 딱 맞아요!</p>
+            </div>
+            </div>
           </div>
 
-          <p class="tip">💡 펀치는 <b>크고 또렷하게!</b> 작게 치면 카메라가 놓칠 수 있어요</p>
-          <p class="tip">🛡 칠 때 <b>안 치는 손은 턱 앞에</b> 올려 두면 <b>점수 +20%</b> (가드 보너스)</p>
+          <p class="tip">💡 펀치는 <b>크고 또렷하게!</b> · 🛡 안 치는 손은 <b>턱 앞에</b> 두면 <b>점수 +20%</b></p>
           <p class="rec-line" id="recLine"></p>
           <button id="gStart" class="gbtn start" disabled>▶ 한 판 붙자!</button>
           <p class="safety">⚠️ 주변 1.5m를 비우고 가볍게 몸 풀고 시작해요 · 영상은 내 브라우저 밖으로 안 나가요</p>
