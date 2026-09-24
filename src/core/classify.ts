@@ -1,7 +1,7 @@
 // Punch type from ARM POSTURE at the peak (M2 play-test: "height-based" types felt wrong — the
 // player had to aim high for uppercuts and low for hooks). Fitted and checked on the M1 southpaw
 // recordings (92 labeled punches, leave-one-recording-out: 87/92 vs 86/92 for the old height rules):
-//   hook     — forearm (elbow→wrist) lies flat: angle −12°…13° for hooks vs ≥51° for everything
+//   hook     — never after a dip; forearm (elbow→wrist) lies flat: angle −12°…13° for hooks vs ≥51° for everything
 //              else, wherever the fist ends up.
 //   uppercut — vs straight, a logistic score: long upright forearm, LOW elbow, a dip, and rise.
 //              Straights thrown at the camera look short (foreshortened) with the elbow higher.
@@ -30,7 +30,9 @@ export function uppercutScore(f: PunchFeatures, p: Params): number {
 
 export function classifyPunch(f: PunchFeatures, p: Params): Classification {
   const ang = Number.isFinite(f.forearmAngle) ? f.forearmAngle : 90;
-  if (ang < p.hookMaxForearmAngle) {
+  // No recorded hook ever started with a dip (0/19), while small rear uppercuts that drive inward
+  // with the forearm pointing at the camera can look flat. A dip rules out a hook.
+  if (!f.dipped && ang < p.hookMaxForearmAngle) {
     return { kind: 'hook', confidence: clamp01(0.5 + (p.hookMaxForearmAngle - ang) / 60) };
   }
   const s = uppercutScore(f, p);

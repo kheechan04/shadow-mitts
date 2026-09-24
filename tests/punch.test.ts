@@ -67,6 +67,17 @@ describe('punch detection on synthetic trajectories', () => {
     expect(ev[0].kind).toBe('uppercut');
   });
 
+  it('small uppercut: dips, then drives INWARD at low height (barely rising) — found, and not a hook', () => {
+    // shape of the "리어 어퍼컷 10회 작게" recording at ~15 fps; the body turns with it (other hand follows)
+    // (the recording shows a ~0.2 s pause at the end of the drive before the hand comes back)
+    const small: Key[] = [...GUARD, [1150, -0.05, -0.35], [1300, 0.12, -0.3], [1500, 0.12, -0.3], [1800, 0, 0], [2400, 0, 0]];
+    const elbow: Key[] = [...GUARD, [1150, 0, -0.25], [1300, 0.05, -0.25], [1500, 0.05, -0.25], [1800, 0, 0], [2400, 0, 0]];
+    const ev = detect(trajectory('left', small, { fps: 15, elbow, follow: 0.5 }));
+    expect(ev).toHaveLength(1);
+    expect(ev[0].features.dipped).toBe(true);
+    expect(ev[0].kind).not.toBe('hook');
+  });
+
   it('dropping the hands and slowly raising them again is not a punch', () => {
     const drop: Key[] = [...GUARD, [1300, 0, -1.2], [2500, 0, -1.2], [3500, 0, 0], [4500, 0, 0]];
     expect(detect(trajectory('right', drop))).toEqual([]);

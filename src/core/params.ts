@@ -33,6 +33,7 @@ export const PARAM_DEFS = [
   { key: 'punchDownMinSpeed', label: '아래로 향한 펀치 최소 속도', group: '펀치 검출', min: 0.2, max: 15, step: 0.1, default: 4.0, unit: 'T/s' },
   { key: 'punchMaxDown', label: '허용 아래 이동 (넘으면 무시)', group: '펀치 검출', min: 0, max: 1, step: 0.01, default: 0.25, unit: 'T' },
   { key: 'punchMaxOutward', label: '허용 바깥 이동 (넘으면 무시)', group: '펀치 검출', min: 0, max: 1, step: 0.01, default: 0.15, unit: 'T' },
+  { key: 'dipDriveMinSpeed', label: '어퍼컷(딥 후) 최소 최고 속도', group: '펀치 검출', min: 0.2, max: 10, step: 0.05, default: 1.0, unit: 'T/s' },
   { key: 'punchMaxDipDepth', label: '어퍼컷 딥 최대 깊이', group: '펀치 검출', min: 0, max: 2, step: 0.01, default: 0.7, unit: 'T' },
   { key: 'punchMaxCommon', label: '양손 동시 움직임 허용 (넘으면 몸통 회전)', group: '펀치 검출', min: 0, max: 1.5, step: 0.01, default: 0.45 },
   { key: 'torsoTurnMaxSpeed', label: '몸통 회전으로 볼 최고 속도 상한', group: '펀치 검출', min: 0, max: 15, step: 0.1, default: 4.0, unit: 'T/s' },

@@ -81,6 +81,10 @@ class ArmDetector {
   private lastEventT = -Infinity;
   /** already re-measured from an uppercut dip during this movement */
   private dipped = false;
+  /** lowest wrist point of the current movement (uppercut dip bottom candidate) */
+  private low = { pos: [0, 0] as V2, t: 0 };
+  /** fastest speed since the lowest point */
+  private speedSinceLow = 0;
 
   constructor(private side: Side, private params: () => Params) {}
 
@@ -122,6 +126,8 @@ class ArmDetector {
         if (dt > 0 && guardUp && cooled && a.speed2d >= p.punchStartSpeed && radial > 0) {
           this.state = 'extending';
           this.dipped = false;
+          this.low = { pos: [...pos], t };
+          this.speedSinceLow = a.speed2d;
           this.origin = [...this.guard];
           this.startT = this.prevT; // motion began before the threshold frame
           const d0 = Math.hypot(pos[0] - this.origin[0], pos[1] - this.origin[1]);
@@ -132,6 +138,33 @@ class ArmDetector {
       }
       case 'extending': {
         this.peakSpeed = Math.max(this.peakSpeed, a.speed2d);
+        if (!this.dipped) {
+          // Still dipping only while going down more than inward; a slightly sinking inward sweep
+          // is already the drive (filter lag makes the wrist keep sinking a little as it turns in).
+          const down = this.low.pos[1] - pos[1];
+          const inward = pos[0] - this.low.pos[0];
+          if (down > 0 && down >= inward) {
+            this.low = { pos: [...pos], t };
+            this.speedSinceLow = 0;
+          }
+          this.speedSinceLow = Math.max(this.speedSinceLow, a.speed2d);
+          // Uppercut drive seen as it happens: the wrist went down (a dip) and is now moving
+          // back up and/or inward from its lowest point. Small rear uppercuts drive INWARD at low
+          // height rather than up (recording "리어 어퍼컷 10회 작게"), so the old "dip turns around
+          // and comes back" test never fired for them. Re-measure from the bottom.
+          const depth = this.origin[1] - this.low.pos[1];
+          const fromLow: V2 = [pos[0] - this.low.pos[0], pos[1] - this.low.pos[1]];
+          const drive = Math.hypot(fromLow[0], fromLow[1]);
+          if (depth > p.punchMaxDown && depth <= p.punchMaxDipDepth && t > this.low.t &&
+              fromLow[0] + fromLow[1] > 0 && drive >= p.punchMinExtent * 0.5) {
+            this.dipped = true;
+            this.origin = [...this.low.pos];
+            this.startT = this.low.t;
+            this.peak = { disp: drive, t, pos: [...pos], el: [...a.elbowRel], e2: a.elbowAngle2d, e3: a.elbowAngle3d };
+            this.peakSpeed = this.speedSinceLow;
+            break;
+          }
+        }
         if (disp > this.peak.disp) {
           this.peak = { disp, t, pos: [...pos], el: [...a.elbowRel], e2: a.elbowAngle2d, e3: a.elbowAngle3d };
         }
@@ -148,7 +181,9 @@ class ArmDetector {
           // being dragged by body rotation — all observed in the M1 recordings.
           // Punches with a downward component (crosses, hooks) were all fast; the dragged guard
           // hand drifts inward-and-down slowly, so going down demands a higher speed.
-          const minSpeed = delta[1] < 0 ? p.punchDownMinSpeed : p.punchMinPeakSpeed;
+          // After a dip (uppercut drive) the slow-drift rule doesn't apply: drifting guard hands
+          // don't dip first, and small uppercuts at ~15 fps peaked at only 1.4–3 T/s.
+          const minSpeed = this.dipped ? p.dipDriveMinSpeed : delta[1] < 0 ? p.punchDownMinSpeed : p.punchMinPeakSpeed;
           const isPunch =
             this.peak.disp >= p.punchMinExtent &&
             delta[1] >= -p.punchMaxDown &&
@@ -261,6 +296,8 @@ export class PunchDetector {
   private isTorsoTurn(e: PunchEvent): boolean {
     const p = this.params();
     const [inward, up] = e.features.delta;
+    // A dip first means an uppercut wind-up; torso turns never dip (small uppercuts were being dropped here).
+    if (e.features.dipped) return false;
     return e.features.common > p.punchMaxCommon && Math.abs(up) < Math.abs(inward) && e.features.peakSpeed < p.torsoTurnMaxSpeed;
   }
 

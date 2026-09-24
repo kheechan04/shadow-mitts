@@ -62,8 +62,8 @@ describe.skipIf(!guard)('world/image axis conventions (guard recording)', () => 
 // ---------------------------------------------------------------- M1 recognition regression floors
 // Floors sit a little below the measured numbers (see README) so tuning can move things, but a
 // real regression fails loudly. Update them deliberately when the data or the defaults change.
-// Measured (15 southpaw recordings, 135 punches, default params): hand 124/135, extra 9,
-// no-punch false 0, number 119/135 (posture-based types).
+// Measured (17 southpaw recordings, 155 punches, default params): hand 140/155, extra 9,
+// no-punch false 0, number 136/155 (incl. small uppercuts at ~15 fps).
 const FLOORS = { hand: 0.88, extraRate: 0.1, number: 0.83, noPunchFalse: 1 };
 
 function loadAll(): Recording[] {
