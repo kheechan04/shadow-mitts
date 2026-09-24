@@ -43,6 +43,8 @@ const game = new GameController({
   cameraRunning: () => mode === 'camera',
   notify: (msg) => showBanner(msg),
 });
+// dev-only handle for automated visual checks (stripped from production builds)
+if (import.meta.env.DEV) (window as unknown as { __game: GameController }).__game = game;
 
 // ---------------------------------------------------------------- camera
 

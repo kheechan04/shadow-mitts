@@ -12,7 +12,7 @@ import type { Params } from '../core/params';
 import type { Side, Stance } from '../core/pose';
 import type { PunchEvent } from '../core/punch';
 import { GameScene, type HandInput } from './scene3d';
-import { bell, comboUp, countBeep, cue, hit, setMuted, tick, uiClick, unlockAudio } from './sfx';
+import { bell, comboUp, countBeep, cue, hit, setMuted, shout, swish, tick, uiClick, unlockAudio } from './sfx';
 
 const SETTINGS_KEY = 'shadowmitts.game.v2';
 const GUARD_HISTORY_MS = 2000;
@@ -49,6 +49,18 @@ const KIND_KO = { straight: '직선', hook: '훅', uppercut: '어퍼컷' } as co
 type Screen = 'menu' | 'playing' | 'calibrating' | 'results';
 
 interface Popup { text: string; sub?: string; color: string; x: number; y: number; at: number }
+/** Comic-book impact burst ("팡!") at the mitt. */
+interface Pow { word: string; x: number; y: number; at: number; size: number; spin: number; fill: string }
+interface Confetto { x: number; y: number; vx: number; vy: number; rot: number; vr: number; color: string; at: number }
+
+const POW_WORDS: Record<'perfect' | 'good' | 'partial', string[]> = {
+  perfect: ['빡!', '팡!!', 'POW!', '쾅!', 'BAM!'],
+  good: ['팡!', '퍽!', '탁!', 'POP!'],
+  partial: ['툭', '톡'],
+};
+const CONFETTI = ['#e11d2e', '#fbbf24', '#22d3ee', '#34d399', '#a78bfa', '#fb923c', '#ffffff'];
+const COMBO_SHOUTS = ['나이스!', '대박!', '미쳤다!', '좋아요!', '계속 가자!', '최고예요!'];
+const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 
 export interface GameDeps {
   params: () => Params;
@@ -67,6 +79,9 @@ export class GameController {
   private scene: GameScene;
   private fx: HTMLCanvasElement;
   private popups: Popup[] = [];
+  private pows: Pow[] = [];
+  private confetti: Confetto[] = [];
+  private lastFx = 0;
   private guardHistory: { t: number; ok: Record<Side, boolean> }[] = [];
   private hands: Record<Side, HandInput | null> = { left: null, right: null };
   private handsAt = 0;
@@ -201,6 +216,8 @@ export class GameController {
     this.calib = null;
     this.phaseCueKey = '';
     this.comboBanner = { text: '', until: 0 };
+    this.pows = [];
+    this.confetti = [];
     this.session = new GameSession(
       {
         stance: this.deps.stance(), difficulty: s.difficulty, lenientKind: s.lenient,
@@ -299,19 +316,33 @@ export class GameController {
       const j = g.onPunch(e, this.guardAt(e.t, other), now);
       this.scene.punch(e.side, now, j?.mittId ?? null);
       if (j) this.onJudged(j, now);
+      else swish();
     }
   }
 
   private onJudged(j: Judgement, now: number): void {
     this.scene.judged(j, now);
-    hit(j.grade);
     const g = this.session;
+    hit(j.grade, g ? Math.max(0, g.combo - 1) : 0);
     if (g && (j.grade === 'perfect' || j.grade === 'good') && g.combo > 0 && g.combo % 10 === 0) {
-      comboUp();
-      this.comboBanner = { text: `${g.combo} COMBO!`, until: now + 900 };
+      const level = g.combo / 10;
+      comboUp(level);
+      shout(level <= 3 ? COMBO_SHOUTS[level - 1] : pick(COMBO_SHOUTS));
+      this.comboBanner = { text: `${g.combo} COMBO!`, until: now + 1200 };
+      this.burstConfetti(now);
     }
     const pos = this.scene.mittScreenPos(j.mittId);
     if (!pos) return;
+    if (j.grade !== 'miss') {
+      this.pows.push({
+        word: pick(POW_WORDS[j.grade]), x: pos.x, y: pos.y, at: now,
+        size: j.grade === 'perfect' ? 1.25 : j.grade === 'good' ? 1 : 0.6,
+        spin: (Math.random() - 0.5) * 0.5,
+        fill: j.grade === 'perfect' ? '#ffd23f' : j.grade === 'good' ? '#ffffff' : '#dbeafe',
+      });
+      // tied to the shake toggle: flashes can bother people sensitive to light
+      if (j.grade !== 'partial' && this.settings.shake) this.flashScreen(j.grade === 'perfect' ? 0.45 : 0.2);
+    }
     this.popups.push({
       text: GRADE_TEXT[j.grade],
       sub: j.seenKind ? `${KIND_KO[j.seenKind]}로 인식됨` : j.guardOk ? '가드 보너스' : undefined,
@@ -362,6 +393,7 @@ export class GameController {
     else if (ph.phase === 'round') {
       if (prev.startsWith('c')) countBeep(true);
       bell(1);
+      shout(ph.round === 0 ? '파이트!' : `라운드 ${ph.round + 1}!`);
     } else if (ph.phase === 'rest' || ph.phase === 'done') bell(3);
   }
 
@@ -383,11 +415,34 @@ export class GameController {
     }
   }
 
-  private setBig(html: string, pop = false): void {
+  private flashScreen(strength: number): void {
+    const el = $('flash');
+    el.style.transition = 'none';
+    el.style.opacity = String(strength);
+    void el.offsetWidth;
+    el.style.transition = 'opacity 160ms ease-out';
+    el.style.opacity = '0';
+  }
+
+  private burstConfetti(now: number): void {
+    const w = this.fx.clientWidth;
+    const h = this.fx.clientHeight;
+    for (let i = 0; i < 90; i++) {
+      const fromLeft = i % 2 === 0;
+      this.confetti.push({
+        x: fromLeft ? w * 0.15 : w * 0.85, y: h * 0.55,
+        vx: (fromLeft ? 1 : -1) * (150 + Math.random() * 450), vy: -(500 + Math.random() * 600),
+        rot: Math.random() * 6, vr: (Math.random() - 0.5) * 16, color: pick(CONFETTI), at: now,
+      });
+    }
+  }
+
+  private setBig(html: string, pop = false, cls = ''): void {
     if (html === this.lastBig) return;
     this.lastBig = html;
     const el = $('bigText');
     el.innerHTML = html;
+    el.classList.toggle('combo', cls === 'combo');
     if (pop) {
       el.classList.remove('pop');
       void el.offsetWidth;
@@ -409,7 +464,7 @@ export class GameController {
     } else if (ph.phase === 'round' && now - g.roundStart(ph.round) < 800) {
       this.setBig(ph.round === 0 ? 'FIGHT!' : `ROUND ${ph.round + 1}`, true);
     } else if (now < this.comboBanner.until) {
-      this.setBig(this.comboBanner.text, true);
+      this.setBig(this.comboBanner.text, true, 'combo');
     } else if (ph.phase === 'rest') {
       this.setBig(`휴식<small>${Math.ceil(ph.msLeft / 1000)}초 후 다음 라운드</small>`);
     } else this.setBig('');
@@ -446,6 +501,59 @@ export class GameController {
     const k = c.width / Math.max(1, c.clientWidth);
     ctx.setTransform(k, 0, 0, k, 0, 0);
     ctx.clearRect(0, 0, c.clientWidth, c.clientHeight);
+    const dt = this.lastFx ? Math.min(0.05, (now - this.lastFx) / 1000) : 0;
+    this.lastFx = now;
+
+    // comic impact bursts: a jagged star that pops in, with the sound word on it
+    this.pows = this.pows.filter((p) => now - p.at < 420);
+    for (const p of this.pows) {
+      const age = (now - p.at) / 420;
+      const pop = age < 0.18 ? 0.3 + (age / 0.18) * 1.0 : 1.3 - (age - 0.18) * 0.35;
+      const r = Math.max(34, c.clientWidth / 16) * p.size * pop;
+      ctx.save();
+      ctx.globalAlpha = age < 0.7 ? 1 : 1 - (age - 0.7) / 0.3;
+      ctx.translate(p.x, p.y - r * 0.2);
+      ctx.rotate(p.spin);
+      ctx.beginPath();
+      const spikes = 12;
+      for (let i = 0; i <= spikes * 2; i++) {
+        const a = (i / (spikes * 2)) * Math.PI * 2;
+        const rr = i % 2 === 0 ? r : r * 0.62;
+        ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+      }
+      ctx.closePath();
+      ctx.fillStyle = p.fill;
+      ctx.fill();
+      ctx.lineWidth = Math.max(4, r * 0.07);
+      ctx.strokeStyle = '#e11d2e';
+      ctx.stroke();
+      ctx.font = `400 ${r * 0.62}px 'Black Han Sans', system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = Math.max(4, r * 0.1);
+      ctx.strokeStyle = '#1e3a8a';
+      ctx.strokeText(p.word, 0, r * 0.04);
+      ctx.fillStyle = '#e11d2e';
+      ctx.fillText(p.word, 0, r * 0.04);
+      ctx.restore();
+    }
+
+    // confetti
+    this.confetti = this.confetti.filter((q) => now - q.at < 2200 && q.y < c.clientHeight + 40);
+    for (const q of this.confetti) {
+      q.vy += 1400 * dt;
+      q.vx *= 1 - 0.8 * dt;
+      q.x += q.vx * dt;
+      q.y += q.vy * dt;
+      q.rot += q.vr * dt;
+      ctx.save();
+      ctx.translate(q.x, q.y);
+      ctx.rotate(q.rot);
+      ctx.fillStyle = q.color;
+      ctx.fillRect(-6, -3.5, 12, 7);
+      ctx.restore();
+    }
+
     this.popups = this.popups.filter((p) => now - p.at < 800);
     for (const p of this.popups) {
       const age = (now - p.at) / 800;
@@ -454,7 +562,8 @@ export class GameController {
       ctx.font = `400 ${size}px 'Black Han Sans', system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const y = p.y - 70 - age * 40;
+      // sit above the comic burst drawn on the mitt
+      const y = p.y - Math.max(34, c.clientWidth / 16) * 1.45 - 24 - age * 40;
       ctx.lineWidth = 6;
       ctx.strokeStyle = 'rgba(0,0,0,0.8)';
       ctx.strokeText(p.text, p.x, y);

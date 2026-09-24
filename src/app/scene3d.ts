@@ -383,12 +383,15 @@ interface MittView {
   glowMats: THREE.MeshStandardMaterial[];
 }
 
-/** How hard each grade hits (M3 "타격감"): shake, sparks, flash, shockwave. */
-const IMPACT: Record<Judgement['grade'], { shake: number; sparks: number; flash: number; wave: number; color: number }> = {
-  perfect: { shake: 0.035, sparks: 34, flash: 1.6, wave: 1, color: 0xffc940 },
-  good: { shake: 0.018, sparks: 20, flash: 1.0, wave: 0.7, color: 0x5eead4 },
-  partial: { shake: 0.008, sparks: 10, flash: 0.6, wave: 0.45, color: 0x93c5fd },
-  miss: { shake: 0, sparks: 0, flash: 0, wave: 0, color: 0xffffff },
+/**
+ * How hard each grade hits (M3 "타격감"; play-test said the first pass "wasn't 시원"):
+ * shake, sparks, flash, shockwave, zoom kick and a hit-stop freeze.
+ */
+const IMPACT: Record<Judgement['grade'], { shake: number; sparks: number; flash: number; wave: number; color: number; kick: number; freezeMs: number }> = {
+  perfect: { shake: 0.065, sparks: 70, flash: 2.4, wave: 1.4, color: 0xffc940, kick: 5, freezeMs: 75 },
+  good: { shake: 0.035, sparks: 38, flash: 1.5, wave: 1.0, color: 0x5eead4, kick: 2.5, freezeMs: 40 },
+  partial: { shake: 0.014, sparks: 16, flash: 0.8, wave: 0.6, color: 0x93c5fd, kick: 0, freezeMs: 0 },
+  miss: { shake: 0, sparks: 0, flash: 0, wave: 0, color: 0xffffff, kick: 0, freezeMs: 0 },
 };
 
 interface Spark { sprite: THREE.Sprite; vel: THREE.Vector3; at: number; life: number }
@@ -421,6 +424,8 @@ export class GameScene {
   private shake = { amp: 0, at: 0 };
   private fovKick = { amount: 0, at: 0 };
   private lastRender = 0;
+  /** hit-stop: the world freezes for a beat on a strong hit */
+  private freezeUntil = 0;
   /** accessibility: screen shake can be turned off in the menu */
   shakeEnabled = true;
 
@@ -594,7 +599,7 @@ export class GameScene {
       sp.scale.setScalar(0.025 + Math.random() * 0.03);
       const dir = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.3, Math.random() - 0.5).normalize().multiplyScalar(0.7).add(normal);
       this.scene.add(sp);
-      this.sparks.push({ sprite: sp, vel: dir.normalize().multiplyScalar(1.5 + Math.random() * 2.5 * fx.wave), at: now, life: 350 + Math.random() * 350 });
+      this.sparks.push({ sprite: sp, vel: dir.normalize().multiplyScalar(2 + Math.random() * 3.5 * fx.wave), at: now, life: 400 + Math.random() * 450 });
     }
 
     // shockwave ring on the mitt face plane
@@ -614,7 +619,8 @@ export class GameScene {
     }
 
     if (this.shakeEnabled && fx.shake > 0) this.shake = { amp: Math.max(this.shake.amp * 0.5, fx.shake), at: now };
-    if (j.grade === 'perfect') this.fovKick = { amount: 2.5, at: now };
+    if (fx.kick) this.fovKick = { amount: fx.kick, at: now };
+    if (fx.freezeMs) this.freezeUntil = Math.max(this.freezeUntil, now + fx.freezeMs);
   }
 
   /**
@@ -625,6 +631,15 @@ export class GameScene {
     mitts: readonly Mitt[], stance: Stance, approachMs: number, holdMs: number, lateMs: number, now: number,
     hands: Record<Side, HandInput | null>,
   ): void {
+    // hit-stop: hold every animation still for a moment, only the camera keeps shaking
+    if (now < this.freezeUntil) {
+      const amp = this.shake.amp;
+      this.camera.position.set((Math.random() - 0.5) * 2 * amp, 1.6 + (Math.random() - 0.5) * 2 * amp, 0);
+      this.camera.lookAt(0, 1.45, -3);
+      this.lastRender = now;
+      this.renderer.render(this.scene, this.camera);
+      return;
+    }
     // create / update / retire mitts
     for (const m of mitts) {
       const since = now - (m.tHit - approachMs);

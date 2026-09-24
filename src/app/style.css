@@ -416,3 +416,15 @@ table.arms th:first-child, table.arms td:first-child { text-align: left; color: 
 
 .tip { margin: 14px 0 0; padding: 8px 14px; border-radius: 14px; background: #fff4d6; border: 2px dashed var(--gold); color: #6b4a00; font-size: 14px; text-align: center; }
 .tip b { color: var(--red); font-weight: 400; }
+
+/* ---------------------------------------------------------------- M3 hit feel */
+.flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 3; }
+.big-text.combo {
+  color: transparent; -webkit-text-stroke: 0;
+  background: linear-gradient(90deg, #ff4b3e, #fbbf24, #34d399, #22d3ee, #a78bfa, #ff4b3e);
+  background-size: 200% 100%; -webkit-background-clip: text; background-clip: text;
+  filter: drop-shadow(0 6px 0 #1e3a8a) drop-shadow(0 12px 24px rgba(30, 58, 138, 0.35));
+  animation: pop 0.45s ease-out, rainbow 0.8s linear infinite, wobble 0.5s ease-in-out infinite 0.45s;
+}
+@keyframes rainbow { to { background-position: 200% 0; } }
+@keyframes wobble { 0%, 100% { transform: translate(-50%, -50%) rotate(-4deg) scale(1.02); } 50% { transform: translate(-50%, -50%) rotate(4deg) scale(1.08); } }
