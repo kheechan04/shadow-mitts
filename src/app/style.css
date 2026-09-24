@@ -507,3 +507,12 @@ table.arms th:first-child, table.arms td:first-child { text-align: left; color: 
   100% { transform: scale(1); }
 }
 .r-face { width: 110px; height: 110px; border-radius: 20px; object-fit: cover; box-shadow: 0 0 0 4px var(--navy); }
+
+/* ---------------------------------------------------------------- M4: records, report, result card */
+.rec-line { margin: 6px 0 0; text-align: center; color: var(--navy); font-size: 14px; }
+.rec-line:empty { display: none; }
+.rec-line b { color: var(--red); }
+.best-line { margin-top: 6px; text-align: center; font-weight: 900; color: var(--navy); }
+.best-line:empty { display: none; }
+.best-line.new { color: var(--red); font-size: 20px; animation: pop 0.45s ease-out; }
+.card-row { margin-top: 12px; align-items: center; }

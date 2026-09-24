@@ -92,6 +92,7 @@
               <label class="toggle"><input type="checkbox" id="gLenient" /><span></span>종류 틀려도 부분 점수</label>
               <label class="toggle"><input type="checkbox" id="gSound" /><span></span>소리</label>
               <label class="toggle"><input type="checkbox" id="gShake" /><span></span>흔들림·번쩍임</label>
+              <label class="toggle" title="펀치별 정확도를 기억해서 약한 펀치를 더 자주 내요"><input type="checkbox" id="gAdaptive" /><span></span>약점 집중</label>
             </div>
 
             <div class="box-row timing">
@@ -103,6 +104,7 @@
           </div>
 
           <p class="tip">💡 펀치는 <b>크고 또렷하게!</b> 작게 치면 카메라가 놓칠 수 있어요</p>
+          <p class="rec-line" id="recLine"></p>
           <button id="gStart" class="gbtn start" disabled>▶ 한 판 붙자!</button>
           <p class="safety">⚠️ 주변 1.5m를 비우고 가볍게 몸 풀고 시작해요 · 영상은 내 브라우저 밖으로 안 나가요</p>
         </div>
@@ -135,11 +137,17 @@
           </div>
           <div id="rBars" class="bars"></div>
           <div id="rWeak" class="weak"></div>
+          <div id="rBest" class="best-line"></div>
+          <div class="row gap center card-row">
+            <button id="rCard" class="gbtn mint small">🖼 결과 카드 저장</button>
+            <label class="toggle" id="rCardFaceWrap"><input type="checkbox" id="rCardFace" checked /><span></span>카드에 내 얼굴</label>
+          </div>
           <div class="row gap center">
             <button id="rAgain" class="gbtn start small">↻ 한 판 더!</button>
             <button id="rMenu" class="gbtn white small">메뉴로</button>
           </div>
           <button id="rSave" class="linkish" title="이번 판의 동작·판정 기록을 파일로 저장해요 (영상은 저장하지 않아요)">이번 판 기록 저장 (분석용)</button>
+          <button id="rClearRec" class="linkish" title="이 브라우저에 저장된 점수·펀치별 기록을 지워요">내 기록 지우기</button>
         </div>
       </section>
     </main>

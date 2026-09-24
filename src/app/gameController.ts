@@ -12,6 +12,9 @@ import type { Params } from '../core/params';
 import type { Side, Stance } from '../core/pose';
 import type { PunchEvent } from '../core/punch';
 import { GameScene, type HandInput } from './scene3d';
+import { adaptiveWeights, recordGame, statAccuracy, weakestPunch, type GameRecord, type Progress } from '../core/progress';
+import { clearProgress, loadProgress, saveProgress } from './records';
+import { downloadCanvas, drawResultCard, type CardData } from './resultCard';
 import { disposeRenderer, prepareFace, renderAllExpressions, wipe, type ExpressionName } from '../face/reactions';
 import { bell, comboUp, countBeep, cue, hit, setMuted, shout, swish, tick, uiClick, unlockAudio } from './sfx';
 
@@ -27,9 +30,11 @@ interface Settings {
   /** accessibility: camera shake on hits */
   shake: boolean;
   offsetMs: number;
+  /** M4: serve weak punches more often */
+  adaptive: boolean;
 }
 
-const DEFAULTS: Settings = { difficulty: 'normal', rounds: 1, roundSec: 60, lenient: true, sound: true, shake: true, offsetMs: 150 };
+const DEFAULTS: Settings = { difficulty: 'normal', rounds: 1, roundSec: 60, lenient: true, sound: true, shake: true, offsetMs: 150, adaptive: true };
 
 function loadSettings(): Settings {
   try {
@@ -109,6 +114,10 @@ export class GameController {
   private faceShown: ExpressionName | null = null;
   private faceAt = 0;
   private faceBusy = false;
+  /** M4 local records (game numbers only) */
+  private progress: Progress = loadProgress();
+  /** data for the result card of the game just finished */
+  private card: Omit<CardData, 'face'> | null = null;
   /** the player chose "얼굴 없이" once this session */
   private skipFaceAsk = false;
   private confetti: Confetto[] = [];
@@ -146,6 +155,15 @@ export class GameController {
     $('rAgain').addEventListener('click', () => this.start());
     $('rMenu').addEventListener('click', () => this.setScreen('menu'));
     $('rSave').addEventListener('click', () => this.deps.saveGameRecording());
+    $('rCard').addEventListener('click', () => void this.saveCard());
+    $('rClearRec').addEventListener('click', () => {
+      if (!confirm('이 브라우저에 저장된 점수와 펀치별 기록을 모두 지울까요? (되돌릴 수 없어요)')) return;
+      clearProgress();
+      this.progress = loadProgress();
+      $('rBest').textContent = '기록을 지웠어요';
+      $('rBest').className = 'best-line';
+      this.refreshMenu();
+    });
     $('faceShoot').addEventListener('click', () => void this.shootFace());
     $('faceClear').addEventListener('click', () => this.clearFaces('지웠어요. 사진은 남아 있지 않아요'));
     window.addEventListener('pagehide', () => this.clearFaces());
@@ -208,6 +226,9 @@ export class GameController {
     offset.value = String(s.offsetMs);
     setMuted(!s.sound);
     lenient.addEventListener('change', () => { s.lenient = lenient.checked; this.save(); });
+    const adaptive = $<HTMLInputElement>('gAdaptive');
+    adaptive.checked = s.adaptive;
+    adaptive.addEventListener('change', () => { s.adaptive = adaptive.checked; this.save(); this.refreshMenu(); });
     sound.addEventListener('change', () => { s.sound = sound.checked; setMuted(!s.sound); this.save(); });
     offset.addEventListener('input', () => { s.offsetMs = Number(offset.value); this.save(); this.refreshMenu(); });
     $('gStart').addEventListener('click', () => this.startOrAskFace());
@@ -235,6 +256,7 @@ export class GameController {
     $<HTMLButtonElement>('gCalibrate').disabled = !cam;
     $('startCam').textContent = cam ? '켜짐 ✓' : '켜기';
     $('startCam').classList.toggle('on', cam);
+    $('recLine').innerHTML = this.recordLine();
   }
 
   private setScreen(s: Screen): void {
@@ -283,6 +305,8 @@ export class GameController {
         stance: this.deps.stance(), difficulty: s.difficulty, lenientKind: s.lenient,
         rounds: s.rounds, roundMs: s.roundSec * 1000, restMs: 10_000,
         latencyOffsetMs: s.offsetMs, seed: (Date.now() & 0x7fffffff) >>> 0,
+        // M4: weak punches come up more (from this browser's records)
+        weights: s.adaptive ? adaptiveWeights(this.progress.skills) : undefined,
       },
       performance.now(),
     );
@@ -500,6 +524,31 @@ export class GameController {
   }
 
   // ---------------------------------------------------------------- reaction face
+
+  // ---------------------------------------------------------------- M4 records & result card
+
+  /** Menu summary: best for the chosen difficulty, games played, what the adaptive mode is working on. */
+  private recordLine(): string {
+    const p = this.progress;
+    if (p.history.length === 0) return '';
+    const d = this.settings.difficulty;
+    const best = p.best[d];
+    const weak = weakestPunch(p.skills);
+    const parts = [`🏆 ${DIFFICULTIES[d].label} 최고 <b>${best !== undefined ? best.toLocaleString() : '-'}</b>`, `${p.history.length}판`];
+    if (weak && this.settings.adaptive) parts.push(`집중 연습: ${weak.n}번 ${PUNCH_NAMES[weak.n]}`);
+    return parts.join(' · ');
+  }
+
+  private async saveCard(): Promise<void> {
+    if (!this.card) return;
+    const acc = this.card.accuracy;
+    const expr: ExpressionName = acc >= 0.85 ? 'perfect' : acc >= 0.65 ? 'good' : acc >= 0.45 ? 'normal' : 'miss';
+    const withFace = !!this.faces && $<HTMLInputElement>('rCardFace').checked;
+    const c = await drawResultCard({ ...this.card, face: withFace ? this.faces![expr] : null });
+    const d = this.card.date;
+    const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
+    downloadCanvas(c, `shadow-mitts-${stamp}.png`);
+  }
 
   private faceMsg(t: string): void {
     $('faceMsg').textContent = t;
@@ -919,7 +968,38 @@ export class GameController {
         `<div class="track"><div class="fill" style="width:${Math.round(r.pct * 100)}%"></div></div>` +
         `<span class="pct">${r.s.perfect + r.s.good}/${r.s.attempts}</span></div>`)
       .join('');
-    $('rWeak').textContent = weakest && weakest.pct < 0.8 ? `약점: ${weakest.n}번 ${PUNCH_NAMES[weakest.n]} — 다음엔 이 펀치를 더 연습해 봐요` : '';
+    // M4: record the game locally (numbers only), then report
+    const now = new Date();
+    const rec: GameRecord = {
+      at: now.toISOString(), difficulty: g.cfg.difficulty, score: g.score, maxCombo: g.maxCombo, accuracy: acc,
+      perNumber: g.stats.slice(1).map((s) => [s.perfect + s.good, s.partial, s.attempts] as [number, number, number]),
+    };
+    const r = recordGame(this.progress, rec, g.stats);
+    this.progress = r.progress;
+    const stored = saveProgress(this.progress);
+    const focus = weakestPunch(this.progress.skills);
+    const lines: string[] = [];
+    if (weakest && weakest.pct < 0.8) lines.push(`이번 판 약점: ${weakest.n}번 ${PUNCH_NAMES[weakest.n]}`);
+    if (focus && this.settings.adaptive) {
+      const s = this.progress.skills[focus.n]!;
+      lines.push(`누적 약점 ${focus.n}번 ${PUNCH_NAMES[focus.n]} (${Math.round(s.acc * 100)}%) — 다음 판에 더 자주 낼게요`);
+    } else if (!this.settings.adaptive && weakest && weakest.pct < 0.8) {
+      lines.push('다음엔 이 펀치를 더 연습해 봐요');
+    }
+    $('rWeak').textContent = lines.join(' · ');
+    const bestEl = $('rBest');
+    bestEl.className = 'best-line' + (r.newBest && r.prevBest !== undefined ? ' new' : '');
+    bestEl.textContent = !stored ? '(이 브라우저는 기록 저장이 막혀 있어요 — 게임은 그대로 돼요)'
+      : r.newBest && r.prevBest !== undefined ? `🏆 새 최고 기록! (이전 ${r.prevBest.toLocaleString()})`
+      : r.prevBest !== undefined ? `${DIFFICULTIES[g.cfg.difficulty].label} 최고 ${(this.progress.best[g.cfg.difficulty] ?? 0).toLocaleString()}`
+      : '첫 기록이에요!';
+    this.card = {
+      grade, score: g.score, accuracy: acc, maxCombo: g.maxCombo, difficultyLabel: DIFFICULTIES[g.cfg.difficulty].label, date: now,
+      rows: rows.map((x) => ({ n: x.n, hits: x.s.perfect + x.s.good, attempts: x.s.attempts, pct: statAccuracy(x.s) })),
+      weakest: weakest ? weakest.n : null,
+      newBest: r.newBest && r.prevBest !== undefined,
+    };
+    $('rCardFaceWrap').style.display = this.faces ? '' : 'none';
     this.lastGame = g;
     this.session = null;
   }
