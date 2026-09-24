@@ -63,10 +63,10 @@
               <button id="startCam" class="gbtn sky small">켜기</button>
             </div>
 
-            <div class="box-row face-row">
+            <div id="faceRow" class="box-row face-row need">
               <span class="tag">😆 리액션 얼굴</span>
               <canvas id="faceThumb" class="face-thumb" hidden></canvas>
-              <button id="faceShoot" class="gbtn mint small">3초 뒤 찍기</button>
+              <button id="faceShoot" class="gbtn mint small">📸 내 얼굴 찍기</button>
               <button id="faceClear" class="gbtn white small" hidden>지우기</button>
             </div>
             <p class="hint" id="faceMsg">판정마다 내 얼굴이 웃고 울어요 (선택) · 🔒 사진은 이 기기 밖으로 안 나가고, 저장하지 않아요</p>
@@ -107,6 +107,19 @@
           <p class="safety">⚠️ 주변 1.5m를 비우고 가볍게 몸 풀고 시작해요 · 영상은 내 브라우저 밖으로 안 나가요</p>
         </div>
       </section>
+
+      <!-- asked once when starting without a reaction face (optional, never required) -->
+      <div id="faceGate" class="face-gate" hidden>
+        <div class="gate-card">
+          <div class="gate-emoji">😆😭😲</div>
+          <h2>내 얼굴로 리액션!</h2>
+          <p>펀치할 때마다 <b>내 얼굴</b>이 웃고, 울고, 깜짝 놀라요.<br />카메라를 보고 3초 뒤 한 장만 찍으면 바로 시작해요.</p>
+          <button id="gateShoot" class="gbtn start small">📸 내 얼굴 찍고 시작!</button>
+          <button id="gateSkip" class="linkish">얼굴 없이 시작할게요</button>
+          <p class="gate-lock">🔒 사진은 이 기기 밖으로 안 나가고, 저장하지 않아요 (창을 닫으면 사라져요)</p>
+          <p id="gateMsg" class="gate-msg"></p>
+        </div>
+      </div>
 
       <!-- results -->
       <section id="results" class="screen results">

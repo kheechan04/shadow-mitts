@@ -66,6 +66,7 @@ const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 /** Below this the camera status warns (punch recognition drops sharply under ~20 fps). */
 const SLOW_FPS = 20;
 const POW_MS = 260;
+const CRITICAL_HOLD_MS = 1100;
 
 const GRADE_FACE: Record<Judgement['grade'], ExpressionName> = { perfect: 'perfect', good: 'good', partial: 'normal', miss: 'miss' };
 const FACE_TAG: Record<ExpressionName, { text: string; color: string }> = {
@@ -108,6 +109,8 @@ export class GameController {
   private faceShown: ExpressionName | null = null;
   private faceAt = 0;
   private faceBusy = false;
+  /** the player chose "얼굴 없이" once this session */
+  private skipFaceAsk = false;
   private confetti: Confetto[] = [];
   private lastFx = 0;
   /** ms between display frames during play — where the stutter shows up */
@@ -207,7 +210,13 @@ export class GameController {
     lenient.addEventListener('change', () => { s.lenient = lenient.checked; this.save(); });
     sound.addEventListener('change', () => { s.sound = sound.checked; setMuted(!s.sound); this.save(); });
     offset.addEventListener('input', () => { s.offsetMs = Number(offset.value); this.save(); this.refreshMenu(); });
-    $('gStart').addEventListener('click', () => this.start());
+    $('gStart').addEventListener('click', () => this.startOrAskFace());
+    $('gateShoot').addEventListener('click', () => void this.gateShoot());
+    $('gateSkip').addEventListener('click', () => {
+      this.skipFaceAsk = true; // asked once; don't nag every round
+      $('faceGate').hidden = true;
+      this.start();
+    });
     $('gCalibrate').addEventListener('click', () => this.startCalibration());
   }
 
@@ -494,6 +503,33 @@ export class GameController {
 
   private faceMsg(t: string): void {
     $('faceMsg').textContent = t;
+    $('gateMsg').textContent = t;
+  }
+
+  /**
+   * Play-test: the small face button got skipped. Starting without a face asks once, with taking
+   * the photo as the big default — but it stays optional (some people won't want their face used,
+   * and a forced "consent" isn't one).
+   */
+  private startOrAskFace(): void {
+    if (this.faces || this.skipFaceAsk || !this.deps.cameraRunning()) {
+      this.start();
+      return;
+    }
+    $('gateMsg').textContent = '';
+    $('faceGate').hidden = false;
+  }
+
+  private async gateShoot(): Promise<void> {
+    $<HTMLButtonElement>('gateShoot').disabled = true;
+    $('faceGate').classList.add('shooting');
+    await this.shootFace();
+    $('faceGate').classList.remove('shooting');
+    $<HTMLButtonElement>('gateShoot').disabled = false;
+    if (this.faces) {
+      $('faceGate').hidden = true;
+      this.start();
+    }
   }
 
   /** 3-2-1 on the camera preview, one frame, faces made here in the browser; the frame is wiped. */
@@ -536,6 +572,7 @@ export class GameController {
       thumb.hidden = false;
       $('faceClear').hidden = false;
       $('faceShoot').textContent = '다시 찍기';
+      $('faceRow').classList.remove('need');
       this.faceMsg('준비 완료! 판정마다 내 얼굴이 떠요 · 🔒 이 기기 밖으로 안 나가고, 창을 닫으면 사라져요');
     } catch (e) {
       this.faceMsg(`표정을 만들지 못했어요 (${e instanceof Error ? e.message : String(e)})`);
@@ -555,7 +592,8 @@ export class GameController {
     $('faceThumb').hidden = true;
     $('rFace').hidden = true;
     $('faceClear').hidden = true;
-    $('faceShoot').textContent = '3초 뒤 찍기';
+    $('faceShoot').textContent = '📸 내 얼굴 찍기';
+    $('faceRow').classList.add('need');
     $('react').classList.remove('on');
     if (msg) this.faceMsg(msg);
   }
@@ -563,6 +601,8 @@ export class GameController {
   /** Swap the reaction box to an expression; `pop` bounces it, `critical` swells it for a beat. */
   private showFace(expr: ExpressionName, now: number, anim: 'pop' | 'critical' | 'none' = 'pop'): void {
     if (!this.faces) return;
+    // let a CRITICAL play out: in fast combos the next hit comes ~0.45 s later and cut it off
+    if (this.faceShown === 'critical' && expr !== 'critical' && now - this.faceAt < CRITICAL_HOLD_MS) return;
     const box = $('react');
     const cv = $<HTMLCanvasElement>('reactFace');
     const src = this.faces[expr];
