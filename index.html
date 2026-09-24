@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shadow Mitts</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🥊</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Jua&family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./src/app/style.css" />
+  </head>
+  <body>
+    <main id="stage" class="stage" data-screen="menu">
+      <canvas id="scene3d"></canvas>
+      <canvas id="fx"></canvas>
+      <div class="vignette"></div>
+
+      <!-- in-game HUD -->
+      <div id="hud" class="hud">
+        <div class="hud-score">
+          <div class="label">SCORE</div>
+          <div id="hScore" class="score">0</div>
+          <div id="hCombo" class="combo"></div>
+        </div>
+        <div class="hud-round">
+          <div id="hRound" class="round-pill">ROUND 1</div>
+          <div id="hTime" class="time">0:00</div>
+        </div>
+        <div id="hCall" class="call"></div>
+        <div id="hGuard" class="guard"></div>
+        <button id="hQuit" class="hud-quit" title="그만 (Esc)">그만</button>
+      </div>
+      <div id="bigText" class="big-text"></div>
+
+      <!-- webcam: large on the menu, picture-in-picture while playing -->
+      <div id="camBox" class="cam-box">
+        <canvas id="view" width="640" height="480"></canvas>
+        <div id="camStatus" class="cam-status">카메라 꺼짐</div>
+      </div>
+      <video id="video" playsinline muted></video>
+      <div id="banner" class="banner hidden"></div>
+
+      <!-- menu -->
+      <section id="menu" class="screen menu">
+        <div class="sunburst"></div>
+        <div class="menu-panel">
+          <div class="logo-wrap">
+            <div class="logo-glove">🥊</div>
+            <div class="logo"><span>SHADOW</span><b>MITTS</b></div>
+            <div class="ribbon">웹캠 하나로 미트 치기!</div>
+          </div>
+
+          <div class="menu-box">
+            <div class="box-row cam-row">
+              <span class="tag">📷 카메라</span>
+              <select id="camera" class="select"><option value="">기본 카메라</option></select>
+              <button id="startCam" class="gbtn sky small">켜기</button>
+            </div>
+
+            <div class="box-label">누가 앞손이에요?</div>
+            <div class="seg" id="stanceSeg">
+              <button data-stance="orthodox"><em>👈</em><b>오소독스</b><small>왼손이 앞</small></button>
+              <button data-stance="southpaw"><em>👉</em><b>사우스포</b><small>오른손이 앞</small></button>
+            </div>
+
+            <div class="box-label">얼마나 세게 가볼까요?</div>
+            <div class="diff" id="diffSeg">
+              <button data-diff="easy"><em>🐣</em><b>쉬움</b><small>느긋하게</small></button>
+              <button data-diff="normal"><em>🥊</em><b>보통</b><small>3연타까지</small></button>
+              <button data-diff="hard"><em>🔥</em><b>어려움</b><small>빠르게!</small></button>
+            </div>
+
+            <div class="box-row opts">
+              <div class="chips" id="roundsSeg"><span>라운드</span><button data-v="1">1</button><button data-v="3">3</button></div>
+              <div class="chips" id="lenSeg"><span>시간</span><button data-v="30">30초</button><button data-v="60">1분</button><button data-v="90">1분30</button></div>
+            </div>
+            <div class="box-row opts">
+              <label class="toggle"><input type="checkbox" id="gLenient" /><span></span>종류 틀려도 부분 점수</label>
+              <label class="toggle"><input type="checkbox" id="gSound" /><span></span>소리</label>
+            </div>
+
+            <div class="box-row timing">
+              <span class="tag">⏱ 타이밍 <b id="gOffsetOut"></b></span>
+              <input id="gOffset" type="range" min="0" max="400" step="5" class="range" />
+              <button id="gCalibrate" class="gbtn mint small">자동 보정</button>
+            </div>
+            <p class="hint" id="gCalibMsg">처음 한 번 "자동 보정"을 하면 판정이 딱 맞아요!</p>
+          </div>
+
+          <button id="gStart" class="gbtn start" disabled>▶ 한 판 붙자!</button>
+          <p class="safety">⚠️ 주변 1.5m를 비우고 가볍게 몸 풀고 시작해요 · 영상은 내 브라우저 밖으로 안 나가요</p>
+        </div>
+      </section>
+
+      <!-- results -->
+      <section id="results" class="screen results">
+        <div class="result-card">
+          <div class="result-top">
+            <div id="rGrade" class="grade">A</div>
+            <div>
+              <div class="label">SCORE</div>
+              <div id="rScore" class="score">0</div>
+              <div id="rMeta" class="meta"></div>
+            </div>
+          </div>
+          <div id="rBars" class="bars"></div>
+          <div id="rWeak" class="weak"></div>
+          <div class="row gap center">
+            <button id="rAgain" class="gbtn start small">↻ 한 판 더!</button>
+            <button id="rMenu" class="gbtn white small">메뉴로</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <button id="devToggle" class="dev-toggle" title="개발자 도구">⚙</button>
+
+    <!-- developer tools: recognition debug, recording, tuning -->
+    <aside id="devPanel" class="panel">
+      <div class="panel-head">개발자 도구 <button id="devClose" class="btn btn-ghost small">닫기</button></div>
+      <details open>
+        <summary>소스</summary>
+        <div class="row">
+          <label>모델
+            <select id="model">
+              <option value="lite" selected>lite</option>
+              <option value="full">full</option>
+              <option value="heavy">heavy</option>
+            </select>
+          </label>
+          <label>해상도
+            <select id="resolution">
+              <option value="640x480" selected>640×480</option>
+              <option value="1280x720">1280×720</option>
+              <option value="320x240">320×240</option>
+            </select>
+          </label>
+          <label><input type="checkbox" id="forceCpu" /> CPU 강제</label>
+        </div>
+        <div class="row">
+          <button id="stopCam">카메라 정지</button>
+          <label><input type="checkbox" id="mirror" checked /> 거울 표시</label>
+        </div>
+      </details>
+
+      <details open>
+        <summary>상태</summary>
+        <dl class="stats">
+          <dt>모드</dt><dd id="sMode">대기</dd>
+          <dt>delegate</dt><dd id="sDelegate">-</dd>
+          <dt>검출 FPS</dt><dd><span id="sFps">-</span> <span id="sFpsHint" class="bad small"></span></dd>
+          <dt>카메라 설정 FPS</dt><dd id="sCamFps">-</dd>
+          <dt>추론 시간</dt><dd id="sInfer">-</dd>
+          <dt>캡처→결과 지연</dt><dd id="sLatency">-</dd>
+          <dt>상체 체크</dt><dd id="sFrame">-</dd>
+        </dl>
+      </details>
+
+      <details open>
+        <summary>펀치 인식 테스트</summary>
+        <div class="row">
+          <label>스탠스
+            <select id="stance">
+              <option value="orthodox">오소독스 (왼손 앞)</option>
+              <option value="southpaw">사우스포 (오른손 앞)</option>
+            </select>
+          </label>
+          <button id="punchReset">숫자 초기화</button>
+        </div>
+        <div id="punchCounts" class="punch-counts"></div>
+        <ol id="punchLog" class="punch-log"></ol>
+        <div class="muted small">줄에 마우스를 올리면 인식에 쓴 값이 보입니다.</div>
+      </details>
+
+      <details>
+        <summary>팔 디버그 <span class="muted small">(L/R = 사람 기준 왼/오른팔)</span></summary>
+        <table class="arms">
+          <thead><tr><th></th><th class="cL">L (15)</th><th class="cR">R (16)</th></tr></thead>
+          <tbody id="armRows"></tbody>
+        </table>
+        <canvas id="graph" width="360" height="180"></canvas>
+      </details>
+
+      <details>
+        <summary>월드 좌표 축 확인 <span class="muted small">(raw, m)</span></summary>
+        <table class="arms">
+          <thead><tr><th></th><th>x</th><th>y</th><th>z</th></tr></thead>
+          <tbody id="probeRows"></tbody>
+        </table>
+      </details>
+
+      <details>
+        <summary>녹화 / 재생</summary>
+        <div class="row">
+          <input id="recNote" type="text" placeholder="메모 (예: 사우스포, 리드 잽 10회)" />
+        </div>
+        <div class="row">
+          <button id="recBtn">● 녹화 시작</button>
+          <span id="recInfo" class="muted small"></span>
+        </div>
+        <div class="row">
+          <label class="file">JSON 열기 <input id="recFile" type="file" accept=".json,application/json" /></label>
+          <button id="replayLast" disabled>방금 녹화 재생</button>
+        </div>
+        <div class="row">
+          <button id="rpPlay">▶/❚❚</button>
+          <button id="rpPrev">◀ 1프레임</button>
+          <button id="rpNext">1프레임 ▶</button>
+          <button id="rpRestart">처음부터</button>
+          <select id="rpSpeed">
+            <option value="0.25">0.25×</option>
+            <option value="0.5">0.5×</option>
+            <option value="1" selected>1×</option>
+          </select>
+          <label><input type="checkbox" id="rpLoop" checked /> 반복</label>
+        </div>
+        <input id="rpSeek" type="range" min="0" max="0" value="0" />
+        <div id="rpInfo" class="muted small"></div>
+      </details>
+
+      <details>
+        <summary>튜닝 (전부 placeholder)</summary>
+        <div id="tuning"></div>
+      </details>
+    </aside>
+    <script type="module" src="./src/app/main.ts"></script>
+  </body>
+</html>

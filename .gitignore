@@ -1,0 +1,5 @@
+node_modules
+dist
+*.log
+# personal motion data — see recordings/README.md
+recordings/*.json
