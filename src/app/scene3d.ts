@@ -692,23 +692,28 @@ export class GameScene {
           const w = Math.sin(held / 90) * 0.006;
           v.group.position.copy(v.target).add(new THREE.Vector3(w, w * 0.5, 0));
         } else {
-          // time's up (or the next mitt is arriving): shrinks away in place
+          // time's up (or the next mitt is arriving): shrinks away in place, then stays hidden —
+          // the game only calls it a miss ~0.3–0.5 s later (a late-detected punch may still come)
           const gone = Math.min(1, (now - (m.holdUntil - JUDGED_POP_MS)) / JUDGED_POP_MS);
           v.group.position.copy(v.target);
           v.group.scale.setScalar(MITT_SCALE * Math.max(0.01, 1 - gone));
+          v.group.visible = gone < 1;
         }
         // the timing ring appears halfway and closes onto the mitt outline exactly at the hit
         const r = Math.min(1, Math.max(0, (1 - k) / 0.5));
-        v.ring.visible = isCurrent && k > 0.45;
+        v.ring.visible = isCurrent && k > 0.45 && now < m.holdUntil - JUDGED_POP_MS;
         v.ring.scale.setScalar(1 + 1.3 * r);
         (v.ring.material as THREE.MeshBasicMaterial).color.set(k >= 0.97 ? 0xfbbf24 : 0xffffff);
-        v.ghost.visible = isCurrent && k > 0.5 && k < 1.05;
+        v.ghost.visible = isCurrent && k > 0.5 && k < 1.05 && now < m.holdUntil - JUDGED_POP_MS;
       } else {
         // pops where it was hit (a quick squash-and-swell), then it's simply gone; a miss just shrinks
         const age = Math.min(1, (now - v.judgedAt) / JUDGED_POP_MS);
         v.ghost.visible = false;
         v.ring.visible = false;
-        if (v.grade === 'miss') v.group.scale.setScalar(MITT_SCALE * Math.max(0.01, 1 - age));
+        // A miss judged after the mitt already left (time ran out) must not pop back into view:
+        // that "reappear and shrink again" over the next mitt was the play-test "miss 후 꼬임".
+        if (v.grade === 'miss' && v.judgedAt! >= m.holdUntil - JUDGED_POP_MS) v.group.visible = false;
+        else if (v.grade === 'miss') v.group.scale.setScalar(MITT_SCALE * Math.max(0.01, 1 - age));
         else {
           const swell = age < 0.35 ? 1 + 0.3 * Math.sin((age / 0.35) * Math.PI * 0.5) : 1.3 * (1 - (age - 0.35) / 0.65);
           v.group.scale.set(MITT_SCALE * swell, MITT_SCALE * swell, MITT_SCALE * swell * 0.7);

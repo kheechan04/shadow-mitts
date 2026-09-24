@@ -353,11 +353,14 @@ export class GameController {
       // tied to the shake toggle: flashes can bother people sensitive to light
       if (j.grade !== 'partial' && this.settings.shake) this.flashScreen(j.grade === 'perfect' ? 0.45 : 0.2);
     }
+    // A time-out miss is decided ~0.3–0.5 s after its mitt left, when the next mitt may already
+    // be in that spot — show its MISS off to the side of the lane instead of on top of the mitt.
+    const timedOut = j.grade === 'miss' && Number.isNaN(j.dtMs);
     this.popups.push({
       text: GRADE_TEXT[j.grade],
       sub: j.seenKind ? `${KIND_KO[j.seenKind]}로 인식됨` : j.guardOk ? '가드 보너스' : undefined,
       color: GRADE_COLOR[j.grade],
-      x: pos.x, y: pos.y, at: now,
+      x: pos.x, y: timedOut ? pos.y - Math.max(60, this.fx.clientHeight * 0.12) : pos.y, at: now,
     });
   }
 
