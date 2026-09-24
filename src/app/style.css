@@ -571,3 +571,32 @@ table.arms th:first-child, table.arms td:first-child { text-align: left; color: 
   /* room above the bobbing logo so "SHADOW" isn't clipped at the top of the scrolling panel */
   .menu-panel { padding-top: 26px; }
 }
+
+/* ---------------------------------------------------------------- M5: first-visit checklist */
+/* dims only the menu side so the camera preview (right) stays clear while checking distance */
+.onboard { place-items: center start; padding-left: 3.5vw; background: linear-gradient(90deg, rgba(15, 23, 42, 0.42) 0 60%, rgba(15, 23, 42, 0) 60%); }
+.onboard-card { width: min(520px, 92vw); text-align: left; }
+.onboard-card h2 { text-align: center; }
+.checks { list-style: none; margin: 4px 0 12px; padding: 0; display: grid; gap: 10px; }
+.checks li { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 16px; background: #f5f7ff; border: 2px solid rgba(30, 58, 138, 0.15); transition: background 0.2s, border-color 0.2s; }
+.checks li i { width: 30px; height: 30px; border-radius: 50%; border: 3px solid #cbd5e1; display: grid; place-items: center; font-style: normal; font-weight: 900; color: #fff; }
+.checks li.ok { background: #ecfdf5; border-color: #10b981; }
+.checks li.ok i { background: #10b981; border-color: #10b981; }
+.checks li.ok i::after { content: '✓'; }
+.checks li.bad { background: #fff7ed; border-color: #f59e0b; }
+.checks li.bad i { border-color: #f59e0b; }
+.checks li.bad i::after { content: '!'; color: #f59e0b; }
+.checks li b { display: block; font-size: 17px; color: var(--navy); font-weight: 400; }
+.checks li small { display: block; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.ob-tip { text-align: center; color: var(--ink); font-size: 14px; }
+.ob-tip b { color: var(--red); font-weight: 400; }
+.onboard-card .gbtn.start.small { display: block; margin: 4px auto 0; }
+.onboard-card .gate-msg { text-align: center; margin-top: 10px; }
+.linkish.inline { display: inline; margin: 0; padding: 0; font-size: inherit; }
+
+/* ---------------------------------------------------------------- M5: accessibility */
+button:focus-visible, input:focus-visible, select:focus-visible, .toggle:focus-within { outline: 3px solid #22d3ee; outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  .logo-wrap, .logo-glove, .sunburst, .gbtn.start, .face-row.need { animation: none !important; }
+  .cam-box, .gate-card { transition: none !important; }
+}

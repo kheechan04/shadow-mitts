@@ -34,7 +34,17 @@ interface Settings {
   adaptive: boolean;
 }
 
-const DEFAULTS: Settings = { difficulty: 'normal', rounds: 1, roundSec: 60, lenient: true, sound: true, shake: true, offsetMs: 150, adaptive: true };
+/** accessibility: people who asked their system for less motion start with shake/flash off */
+const prefersReducedMotion = (() => {
+  try {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
+  }
+})();
+
+const DEFAULTS: Settings = { difficulty: 'normal', rounds: 1, roundSec: 60, lenient: true, sound: true, shake: !prefersReducedMotion, offsetMs: 150, adaptive: true };
+const ONBOARD_KEY = 'shadowmitts.onboarded.v1';
 
 function loadSettings(): Settings {
   try {
@@ -114,6 +124,8 @@ export class GameController {
   private faceShown: ExpressionName | null = null;
   private faceAt = 0;
   private faceBusy = false;
+  /** latest "whole upper body in frame" from the camera, for the first-visit checklist */
+  private upperBody: boolean | null = null;
   /** M4 local records (game numbers only) */
   private progress: Progress = loadProgress();
   /** data for the result card of the game just finished */
@@ -173,6 +185,18 @@ export class GameController {
     this.refreshMenu();
     setInterval(() => this.refreshMenu(), 400);
     window.addEventListener('resize', () => this.alignMenuCam());
+    $('obOpen').addEventListener('click', () => this.showOnboarding(true));
+    $('obCamBtn').addEventListener('click', () => $('startCam').click());
+    $('obDone').addEventListener('click', () => {
+      try {
+        localStorage.setItem(ONBOARD_KEY, '1');
+      } catch {
+        // storage blocked: it just shows again next visit
+      }
+      $('onboard').hidden = true;
+    });
+    // after construction: the checklist reads deps (fps) that main.ts declares after creating us
+    setTimeout(() => this.showOnboarding(false), 0);
     void document.fonts?.ready.then(() => this.alignMenuCam());
   }
 
@@ -280,8 +304,40 @@ export class GameController {
     stage.style.setProperty('--mc-left', `${Math.round(left - st.left)}px`);
   }
 
+  /** First visit (or "❔ 처음 안내"): the live checklist. */
+  private showOnboarding(force: boolean): void {
+    let seen = false;
+    try {
+      seen = localStorage.getItem(ONBOARD_KEY) === '1';
+    } catch {
+      seen = false;
+    }
+    if (force || !seen) $('onboard').hidden = false;
+    this.updateOnboarding();
+  }
+
+  private updateOnboarding(): void {
+    if ($('onboard').hidden) return;
+    const cam = this.deps.cameraRunning();
+    const fps = this.deps.detectFps();
+    const set = (id: string, ok: boolean | null) => {
+      const li = $(id);
+      li.classList.toggle('ok', ok === true);
+      li.classList.toggle('bad', ok === false);
+    };
+    set('obCam', cam);
+    $('obCamBtn').hidden = cam;
+    set('obBody', cam ? this.upperBody : null);
+    const fpsOk = cam && Number.isFinite(fps) ? fps >= 20 : null;
+    set('obLight', fpsOk);
+    $('obLightSub').textContent = fpsOk === null ? '불을 켜거나 창 쪽을 보면 인식이 빨라져요'
+      : fpsOk ? `좋아요! 초당 ${Math.round(fps)}번 인식 중`
+      : `초당 ${Math.round(fps)}번 인식 중 — 조금 어두워요. 불을 켜거나 창 쪽을 봐 주세요`;
+  }
+
   private refreshMenu(): void {
     this.alignMenuCam();
+    this.updateOnboarding();
     const s = this.settings;
     const mark = (groupId: string, attr: string, value: string) => {
       for (const b of $(groupId).querySelectorAll('button')) b.classList.toggle('sel', b.getAttribute(attr) === value);
@@ -415,6 +471,7 @@ export class GameController {
       // Webcams drop to ~15 fps in dim rooms, and quick punches then span only 2–3 frames.
       const fps = this.deps.detectFps();
       const slow = Number.isFinite(fps) && fps < SLOW_FPS;
+      this.upperBody = features.upperBodyInFrame;
       st.textContent = !features.upperBodyInFrame ? '상체가 다 보이게 조금 뒤로'
         : slow ? `인식 느림 (${Math.round(fps)}fps) · 방을 더 밝게` : '준비 완료 ✓';
       st.className = `cam-status ${features.upperBodyInFrame && !slow ? 'ok' : 'warn'}`;

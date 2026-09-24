@@ -112,9 +112,24 @@
           <p class="tip">💡 펀치는 <b>크고 또렷하게!</b> · 🛡 안 치는 손은 <b>턱 앞에</b> 두면 <b>점수 +20%</b></p>
           <p class="rec-line" id="recLine"></p>
           <button id="gStart" class="gbtn start" disabled>▶ 한 판 붙자!</button>
-          <p class="safety">⚠️ 주변 1.5m를 비우고 가볍게 몸 풀고 시작해요 · 영상은 내 브라우저 밖으로 안 나가요</p>
+          <p class="safety">⚠️ 주변 1.5m를 비우고 가볍게 몸 풀고 시작해요 · 영상은 내 브라우저 밖으로 안 나가요 · <button id="obOpen" class="linkish inline">❔ 처음 안내</button></p>
         </div>
       </section>
+
+      <!-- first visit: a live checklist (camera, distance, light); the camera preview stays in view on the right -->
+      <div id="onboard" class="face-gate onboard" hidden>
+        <div class="gate-card onboard-card" role="dialog" aria-labelledby="obTitle">
+          <h2 id="obTitle">처음이세요? 딱 3가지만!</h2>
+          <ol class="checks">
+            <li id="obCam"><i aria-hidden="true"></i><div><b>카메라 켜기</b><small>처음 한 번 카메라 사용을 "허용"해 주세요</small></div><button id="obCamBtn" class="gbtn sky small">켜기</button></li>
+            <li id="obBody"><i aria-hidden="true"></i><div><b>한 걸음 뒤로</b><small>1.5~2m 떨어져서 오른쪽 화면에 머리부터 허리까지 보이게</small></div></li>
+            <li id="obLight"><i aria-hidden="true"></i><div><b>밝게</b><small id="obLightSub">불을 켜거나 창 쪽을 보면 인식이 빨라져요</small></div></li>
+          </ol>
+          <p class="ob-tip">👊 펀치는 <b>크고 또렷하게</b> · 🛡 안 치는 손은 <b>턱 앞에</b> · ⚠️ 주변 1.5m 비우기</p>
+          <button id="obDone" class="gbtn start small">좋아요, 시작할게요!</button>
+          <p class="gate-msg">메뉴 아래 "❔ 처음 안내"로 다시 볼 수 있어요</p>
+        </div>
+      </div>
 
       <!-- asked once when starting without a reaction face (optional, never required) -->
       <div id="faceGate" class="face-gate" hidden>

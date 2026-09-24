@@ -10,7 +10,7 @@ export type ModelVariant = 'lite' | 'full' | 'heavy';
 export type Delegate = 'GPU' | 'CPU';
 
 export const modelUrl = (v: ModelVariant) =>
-  `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_${v}/float16/latest/pose_landmarker_${v}.task`;
+  `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_${v}/float16/1/pose_landmarker_${v}.task`;
 
 export interface PoseResult {
   lm: P4[] | null;
