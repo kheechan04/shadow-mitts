@@ -1,7 +1,9 @@
 // Mitt-timing game rules (M2, DESIGN §5). Pure: no DOM, no clock — callers pass `now`.
 //
 // Judgement is event-based and works like real pad work: a mitt arrives at tHit and is HELD
-// there for holdMs. A punch from the right hand whose (peak time − latency offset) lands anywhere
+// there for holdMs — or, inside a combo, until the next mitt arrives, whichever is first (a pad
+// holder switches pads on the beat; play-test: waiting for the late hit made later mitts pile up
+// and snap in). A punch from the right hand whose (peak time − latency offset) lands anywhere
 // from earlyMs before arrival until the hold ends hits it — Perfect near the arrival, Good later.
 // (Play-test: a single ±160 ms instant felt nothing like hitting mitts.) Where the hand is on
 // screen is never compared to where the mitt is drawn (webcam depth is too unreliable).
@@ -108,6 +110,10 @@ export interface Mitt {
   /** position inside its combo, 0-based, and the combo length */
   comboIndex: number;
   comboSize: number;
+  /** end of the hit window: tHit + holdMs, cut short when the next mitt arrives sooner */
+  holdUntil: number;
+  /** inside a combo: the previous mitt's tHit, when this one starts its final approach */
+  enterAt: number | null;
   judgement: Judgement | null;
 }
 
@@ -197,11 +203,17 @@ export class GameSession {
         combo.forEach((n, i) => {
           this.mitts.push({
             id: id++, n, side: numberSide(n, cfg.stance), kind: numberKind(n),
-            tHit: t + i * this.spec.inComboGapMs, round: r, comboIndex: i, comboSize: combo.length, judgement: null,
+            tHit: t + i * this.spec.inComboGapMs, round: r, comboIndex: i, comboSize: combo.length,
+            holdUntil: t + i * this.spec.inComboGapMs + this.spec.holdMs,
+            enterAt: i > 0 ? t + (i - 1) * this.spec.inComboGapMs : null,
+            judgement: null,
           });
         });
         t += (combo.length - 1) * this.spec.inComboGapMs + this.spec.betweenCombosMs;
       }
+    }
+    for (let i = 0; i + 1 < this.mitts.length; i++) {
+      this.mitts[i].holdUntil = Math.min(this.mitts[i].holdUntil, this.mitts[i + 1].tHit);
     }
   }
 
@@ -253,7 +265,7 @@ export class GameSession {
   update(now: number): Judgement[] {
     const out: Judgement[] = [];
     for (const m of this.mitts) {
-      if (m.judgement || now <= m.tHit + this.settleMs) continue;
+      if (m.judgement || now <= m.holdUntil + Math.max(0, this.cfg.latencyOffsetMs) + EMIT_GRACE_MS) continue;
       this.combo = 0;
       out.push(this.record(m, { mittId: m.id, grade: 'miss', dtMs: NaN, points: 0, guardOk: null, at: now }));
     }
@@ -272,7 +284,7 @@ export class GameSession {
     let best: Mitt | null = null;
     for (const m of this.mitts) {
       if (m.judgement || m.side !== ev.side) continue;
-      if (t >= m.tHit - this.spec.earlyMs && t <= m.tHit + this.spec.holdMs) {
+      if (t >= m.tHit - this.spec.earlyMs && t <= m.holdUntil) {
         best = m;
         break;
       }

@@ -381,10 +381,6 @@ interface MittView {
   grade: Judgement['grade'] | null;
   /** materials that light up on impact */
   glowMats: THREE.MeshStandardMaterial[];
-  /** when this mitt became the one to hit (null = still waiting its turn) */
-  activeAt: number | null;
-  /** path progress it was held at while waiting */
-  fromK: number;
 }
 
 /**
@@ -405,7 +401,11 @@ interface Spark { sprite: THREE.Sprite; vel: THREE.Vector3; at: number; life: nu
  * read as afterimages, so: a judged mitt pops and is gone in this time, right where it was hit.
  */
 const JUDGED_POP_MS = 160;
-/** Later mitts of a combo wait far back along their path, solid, until it's their turn. */
+/**
+ * Later mitts of a combo wait far back along their path, solid, and start their final approach
+ * when the previous mitt arrives (Mitt.enterAt) — on the clock, never waiting for a judgement
+ * (play-test: waiting made a late hit delay every later mitt, which then snapped in and vanished).
+ */
 const WAIT_K = 0.3;
 interface Wave { mesh: THREE.Mesh; at: number; size: number }
 
@@ -578,7 +578,7 @@ export class GameScene {
       const mat = (o as THREE.Mesh).material;
       if (mat instanceof THREE.MeshStandardMaterial) glowMats.push(mat);
     });
-    return { mitt: m, group, ghost, ring, target, start, control, judgedAt: null, grade: null, glowMats, activeAt: null, fromK: 0 };
+    return { mitt: m, group, ghost, ring, target, start, control, judgedAt: null, grade: null, glowMats };
   }
 
   /** A punch was detected: throw that glove (toward its mitt when it hit one). */
@@ -637,11 +637,11 @@ export class GameScene {
   }
 
   /**
-   * approachMs: flight time. holdMs: how long the mitt stays presented after arriving (pad work).
+   * approachMs: flight time. Each mitt stays presented until its holdUntil (pad work).
    * lateMs: how long after tHit an unjudged mitt may still be claimed (includes detector delay).
    */
   render(
-    mitts: readonly Mitt[], stance: Stance, approachMs: number, holdMs: number, lateMs: number, now: number,
+    mitts: readonly Mitt[], stance: Stance, approachMs: number, lateMs: number, now: number,
     hands: Record<Side, HandInput | null>,
   ): void {
     // hit-stop: hold every animation still for a moment, only the camera keeps shaking
@@ -653,8 +653,6 @@ export class GameScene {
       this.renderer.render(this.scene, this.camera);
       return;
     }
-    // One mitt at a time, like a pad holder: only the mitt to hit now comes all the way in.
-    const current = mitts.find((m) => !m.judgement && !(this.views.get(m.id)?.judgedAt != null));
     // create / update / retire mitts
     for (const m of mitts) {
       const since = now - (m.tHit - approachMs);
@@ -674,31 +672,28 @@ export class GameScene {
       const k = since / approachMs;
       if (v.judgedAt === null) {
         const held = now - m.tHit;
-        const isCurrent = m === current;
-        if (isCurrent && v.activeAt === null) {
-          v.activeAt = now;
-          v.fromK = Math.min(k, WAIT_K);
+        // path progress: first mitt of a combo flies the whole way; later ones park at WAIT_K,
+        // then cover the rest between the previous mitt's arrival and their own
+        let u = Math.min(1, k);
+        const waiting = m.enterAt !== null && now < m.enterAt;
+        if (m.enterAt !== null) {
+          const kPark = Math.min(WAIT_K, 1 - (m.tHit - m.enterAt) / approachMs);
+          u = waiting ? Math.min(k, kPark) : kPark + (1 - kPark) * Math.min(1, (now - m.enterAt) / Math.max(1, m.tHit - m.enterAt));
         }
-        // waiting: parked at WAIT_K (even past its time); current: catches up from where it was
-        // parked so it still arrives exactly at tHit
-        let u = Math.min(k, WAIT_K);
-        if (v.activeAt !== null) {
-          const span = m.tHit - v.activeAt;
-          u = span > 0 && v.fromK < k ? v.fromK + (1 - v.fromK) * Math.min(1, (now - v.activeAt) / span) : Math.min(1, k);
-        }
-        if (v.activeAt === null || u < 1) {
+        const isCurrent = !waiting;
+        if (u < 1) {
           // quadratic Bezier start → control → target
           const a = v.start.clone().multiplyScalar((1 - u) * (1 - u));
           const b = v.control.clone().multiplyScalar(2 * (1 - u) * u);
           const c = v.target.clone().multiplyScalar(u * u);
           v.group.position.copy(a.add(b).add(c));
-        } else if (held <= holdMs) {
+        } else if (now <= m.holdUntil - JUDGED_POP_MS) {
           // presented: the pad holder keeps it there, with a little life in the hands
           const w = Math.sin(held / 90) * 0.006;
           v.group.position.copy(v.target).add(new THREE.Vector3(w, w * 0.5, 0));
         } else {
-          // time's up: shrinks away in place (sliding back read as an afterimage)
-          const gone = Math.min(1, (held - holdMs) / JUDGED_POP_MS);
+          // time's up (or the next mitt is arriving): shrinks away in place
+          const gone = Math.min(1, (now - (m.holdUntil - JUDGED_POP_MS)) / JUDGED_POP_MS);
           v.group.position.copy(v.target);
           v.group.scale.setScalar(MITT_SCALE * Math.max(0.01, 1 - gone));
         }

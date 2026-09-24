@@ -84,8 +84,9 @@ describe('judgement', () => {
     const g = new GameSession(cfg(), 0);
     expect(g.onPunch(hitting(g, 0, -(spec.earlyMs - 1)), false, 0)!.grade).toBe('perfect');
     expect(g.onPunch(hitting(g, 1, spec.perfectMs - 1), false, 0)!.grade).toBe('perfect');
-    expect(g.onPunch(hitting(g, 2, spec.holdMs - 1), false, 0)!.grade).toBe('good');
-    expect(g.onPunch(hitting(g, 3, spec.holdMs + 30), false, 0)).toBeNull();
+    const hold = (i: number) => g.mitts[i].holdUntil - g.mitts[i].tHit;
+    expect(g.onPunch(hitting(g, 2, hold(2) - 1), false, 0)!.grade).toBe('good');
+    expect(g.onPunch(hitting(g, 3, hold(3) + 30), false, 0)).toBeNull();
     expect(g.onPunch(hitting(g, 4, -(spec.earlyMs + 30)), false, 0)).toBeNull();
     expect(g.stray).toBe(2);
   });
@@ -99,9 +100,24 @@ describe('judgement', () => {
     const [a, b] = g.mitts;
     const side = a.side;
     // force a double jab shape: two mitts for the same hand 600 ms apart
-    b.side = side; b.kind = a.kind; b.tHit = a.tHit + 600;
+    b.side = side; b.kind = a.kind; b.tHit = a.tHit + 600; a.holdUntil = b.tHit;
     expect(g.onPunch(punch(a.tHit + 500, side, a.kind), false, 0)!.mittId).toBe(a.id);
     expect(g.onPunch(punch(a.tHit + 650, side, a.kind), false, 0)!.mittId).toBe(b.id);
+  });
+
+  it('inside a combo a mitt can be hit until the next one arrives, and the schedule never slips', () => {
+    const g = new GameSession(cfg({ difficulty: 'hard' }), 0);
+    const i = g.mitts.findIndex((m) => m.comboIndex > 0);
+    const [prev, next] = [g.mitts[i - 1], g.mitts[i]];
+    expect(next.enterAt).toBe(prev.tHit);
+    // hard: 450 ms between punches < 550 ms hold → the window is cut at the next arrival
+    expect(prev.holdUntil).toBe(next.tHit);
+    const before = g.mitts.map((m) => m.tHit);
+    expect(g.onPunch(punch(next.tHit - 1, prev.side, prev.kind), false, 0)!.mittId).toBe(prev.id);
+    expect(g.mitts.map((m) => m.tHit)).toEqual(before);
+    // a combo's last mitt keeps the full hold
+    const last = g.mitts.find((m) => m.comboIndex === m.comboSize - 1)!;
+    expect(last.holdUntil).toBe(last.tHit + DIFFICULTIES.hard.holdMs);
   });
 
   it('latency offset is subtracted from the punch time', () => {
@@ -136,8 +152,8 @@ describe('judgement', () => {
   it('unanswered mitts become misses only after the window plus the detector delay', () => {
     const g = new GameSession(cfg(), 0);
     const m = g.mitts[0];
-    expect(g.update(m.tHit + spec.holdMs + EMIT_GRACE_MS - 1)).toEqual([]);
-    const out = g.update(m.tHit + spec.holdMs + EMIT_GRACE_MS + 1);
+    expect(g.update(m.holdUntil + EMIT_GRACE_MS - 1)).toEqual([]);
+    const out = g.update(m.holdUntil + EMIT_GRACE_MS + 1);
     expect(out.map((j) => j.mittId)).toContain(m.id);
     expect(m.judgement!.grade).toBe('miss');
     // a late punch can no longer take it

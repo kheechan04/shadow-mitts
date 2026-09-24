@@ -267,7 +267,8 @@ export class GameController {
     const lead: Side = this.deps.stance() === 'orthodox' ? 'left' : 'right';
     // Show each beat as a jab mitt so calibration feels like the game.
     this.calibMitts = this.calib.beats.map((tHit, i) => ({
-      id: 10_000 + i, n: 1, side: lead, kind: 'straight' as const, tHit, round: 0, comboIndex: 0, comboSize: 1, judgement: null,
+      id: 10_000 + i, n: 1, side: lead, kind: 'straight' as const, tHit, round: 0, comboIndex: 0, comboSize: 1,
+      holdUntil: tHit + CALIBRATION.windowMs, enterAt: null, judgement: null,
     }));
     this.setScreen('calibrating');
   }
@@ -373,7 +374,7 @@ export class GameController {
           this.onJudged(m.judgement, now);
         }
       }
-      this.scene.render(this.calibMitts, this.deps.stance(), 2200, CALIBRATION.windowMs, CALIBRATION.windowMs, now, handsFresh);
+      this.scene.render(this.calibMitts, this.deps.stance(), 2200, CALIBRATION.windowMs, now, handsFresh);
       this.setBig(now < c.beats[0] - 700 ? '타이밍 맞추기<small>날아온 미트가 목표 링에 딱 겹칠 때 잽! (8번)</small>' : '');
       this.drawFx(now);
       if (now > c.endAt) this.finishCalibration(c);
@@ -384,7 +385,7 @@ export class GameController {
     if (!g) return;
     for (const j of g.update(now)) this.onJudged(j, now);
     this.cueBeats(g.mitts, now);
-    this.scene.render(g.mitts, g.cfg.stance, g.spec.approachMs, g.spec.holdMs, g.settleMs, now, handsFresh);
+    this.scene.render(g.mitts, g.cfg.stance, g.spec.approachMs, g.settleMs, now, handsFresh);
     this.drawFx(now);
     this.phaseCues(g, now);
     this.updateHud(g, now);
@@ -593,10 +594,11 @@ export class GameController {
     // hold gauge: how much longer each presented mitt stays (gold while it's still a PERFECT)
     for (const m of g.mitts) {
       const held = now - m.tHit;
-      if (m.judgement || held < 0 || held > g.spec.holdMs) continue;
+      const hold = m.holdUntil - m.tHit;
+      if (m.judgement || held < 0 || held > hold) continue;
       const c = this.scene.mittScreenCircle(m.id);
       if (!c) continue;
-      const left = 1 - held / g.spec.holdMs;
+      const left = 1 - held / hold;
       ctx.lineWidth = Math.max(5, c.r * 0.12);
       ctx.lineCap = 'round';
       ctx.strokeStyle = 'rgba(255,255,255,0.35)';
