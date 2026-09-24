@@ -634,10 +634,9 @@ export class GameScene {
 
   /**
    * approachMs: flight time. Each mitt stays presented until its holdUntil (pad work).
-   * lateMs: how long after tHit an unjudged mitt may still be claimed (includes detector delay).
    */
   render(
-    mitts: readonly Mitt[], stance: Stance, approachMs: number, lateMs: number, now: number,
+    mitts: readonly Mitt[], stance: Stance, approachMs: number, now: number,
     hands: Record<Side, HandInput | null>,
   ): void {
     // Every mitt moves only by the clock, at an even pace along its whole path, like notes in a
@@ -649,7 +648,10 @@ export class GameScene {
     for (const m of mitts) {
       const since = now - (m.tHit - approachMs);
       let v = this.views.get(m.id);
-      const done = v?.judgedAt != null ? now - v.judgedAt > JUDGED_POP_MS : now > m.tHit + lateMs + 500;
+      // an unjudged mitt is gone once its window ends (it has shrunk away by then); keeping the
+      // hidden view until the late miss verdict blocked the next same-number mitt, which then
+      // popped up in the same spot — "놓친 미트가 다시 뜬다"
+      const done = v?.judgedAt != null ? now - v.judgedAt > JUDGED_POP_MS : now >= m.holdUntil;
       if (since < 0 || done) {
         if (v && done) {
           this.scene.remove(v.group, v.ghost);

@@ -73,6 +73,8 @@ export interface GameDeps {
   cameraRunning: () => boolean;
   /** pose detections per second (NaN until measured) */
   detectFps: () => number;
+  /** download this game's pose frames + schedule + judgements (for analysis) */
+  saveGameRecording: () => void;
   notify: (msg: string) => void;
 }
 
@@ -88,6 +90,9 @@ export class GameController {
   private pows: Pow[] = [];
   private confetti: Confetto[] = [];
   private lastFx = 0;
+  /** ms between display frames during play — where the stutter shows up */
+  private renderGaps: number[] = [];
+  private lastFrameAt = 0;
   private guardHistory: { t: number; ok: Record<Side, boolean> }[] = [];
   private hands: Record<Side, HandInput | null> = { left: null, right: null };
   private handsAt = 0;
@@ -115,6 +120,7 @@ export class GameController {
     $('hQuit').addEventListener('click', () => this.finish());
     $('rAgain').addEventListener('click', () => this.start());
     $('rMenu').addEventListener('click', () => this.setScreen('menu'));
+    $('rSave').addEventListener('click', () => this.deps.saveGameRecording());
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && (this.screen === 'playing' || this.screen === 'calibrating')) this.finish();
     });
@@ -124,6 +130,15 @@ export class GameController {
 
   get active(): boolean {
     return this.screen === 'playing' || this.screen === 'calibrating';
+  }
+
+  get playing(): boolean {
+    return this.screen === 'playing';
+  }
+
+  /** The last game's schedule, judgements and display frame gaps, for the in-game recording. */
+  gameLog(): { session: GameSession; renderGapsMs: number[] } | null {
+    return this.session ? { session: this.session, renderGapsMs: this.renderGaps } : null;
   }
 
   // ---------------------------------------------------------------- menu
@@ -224,6 +239,8 @@ export class GameController {
     this.comboBanner = { text: '', until: 0 };
     this.pows = [];
     this.confetti = [];
+    this.renderGaps = [];
+    this.lastFrameAt = 0;
     this.session = new GameSession(
       {
         stance: this.deps.stance(), difficulty: s.difficulty, lenientKind: s.lenient,
@@ -378,7 +395,7 @@ export class GameController {
           this.onJudged(m.judgement, now);
         }
       }
-      this.scene.render(this.calibMitts, this.deps.stance(), 2200, CALIBRATION.windowMs, now, handsFresh);
+      this.scene.render(this.calibMitts, this.deps.stance(), 2200, now, handsFresh);
       this.setBig(now < c.beats[0] - 700 ? '타이밍 맞추기<small>날아온 미트가 목표 링에 딱 겹칠 때 잽! (8번)</small>' : '');
       this.drawFx(now);
       if (now > c.endAt) this.finishCalibration(c);
@@ -387,9 +404,11 @@ export class GameController {
 
     const g = this.session;
     if (!g) return;
+    if (this.lastFrameAt) this.renderGaps.push(Math.round((now - this.lastFrameAt) * 10) / 10);
+    this.lastFrameAt = now;
     for (const j of g.update(now)) this.onJudged(j, now);
     this.cueBeats(g.mitts, now);
-    this.scene.render(g.mitts, g.cfg.stance, g.spec.approachMs, g.settleMs, now, handsFresh);
+    this.scene.render(g.mitts, g.cfg.stance, g.spec.approachMs, now, handsFresh);
     this.drawFx(now);
     this.phaseCues(g, now);
     this.updateHud(g, now);

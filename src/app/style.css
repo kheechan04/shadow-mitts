@@ -428,3 +428,7 @@ table.arms th:first-child, table.arms td:first-child { text-align: left; color: 
 }
 @keyframes rainbow { to { background-position: 200% 0; } }
 @keyframes wobble { 0%, 100% { transform: translate(-50%, -50%) rotate(-4deg) scale(1.02); } 50% { transform: translate(-50%, -50%) rotate(4deg) scale(1.08); } }
+
+/* small text button under the results (analysis recording) */
+.linkish { display: block; margin: 10px auto 0; background: none; border: 0; color: #64748b; font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
+.linkish:hover { color: #1e3a8a; }

@@ -42,6 +42,7 @@ const game = new GameController({
   },
   cameraRunning: () => mode === 'camera',
   detectFps: () => fps,
+  saveGameRecording: () => saveGameRecording(),
   notify: (msg) => showBanner(msg),
 });
 // dev-only handle for automated visual checks (stripped from production builds)
@@ -221,6 +222,7 @@ async function onVideoFrame(captureTime: number | undefined): Promise<void> {
     const t0 = performance.now();
     const res = landmarker.detectForVideo(video, ts);
     const t1 = performance.now();
+    lastInferMs = t1 - t0;
     inferMs = Number.isNaN(inferMs) ? t1 - t0 : inferMs * 0.9 + (t1 - t0) * 0.1;
     if (typeof captureTime === 'number' && captureTime > 0) {
       latencySupported = true;
@@ -256,6 +258,16 @@ async function onVideoFrame(captureTime: number | undefined): Promise<void> {
   }
   countFps();
   if (recording) recording.frames.push(frame);
+  // Every game is recorded in memory so a bad round can be saved from the results screen.
+  if (game.playing) {
+    if (!gameWasPlaying) {
+      gameFrames = [];
+      gameInfer = [];
+    }
+    gameFrames.push(frame);
+    gameInfer.push(Math.round(lastInferMs * 10) / 10);
+  }
+  gameWasPlaying = game.playing;
   processFrame(frame);
   scheduleVideoFrame();
 }
@@ -299,6 +311,59 @@ function render(): void {
 }
 
 // ---------------------------------------------------------------- recording
+
+let gameFrames: PoseFrame[] = [];
+let gameInfer: number[] = [];
+let gameWasPlaying = false;
+let lastInferMs = NaN;
+
+function download(text: string, name: string): void {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/**
+ * The last game as a normal recording (replayable, eval ignores it as free-form) plus a "game"
+ * block: the mitt schedule and judgements, display frame gaps and per-frame inference time,
+ * all on the frames' clock (t = 0 at the first frame).
+ */
+function saveGameRecording(): void {
+  const log = game.gameLog();
+  if (!log || gameFrames.length === 0) {
+    showBanner('저장할 게임 기록이 없어요');
+    return;
+  }
+  const g = log.session;
+  const rec: Recording = {
+    meta: {
+      version: 1,
+      createdAt: new Date().toISOString(),
+      note: `${g.cfg.stance === 'southpaw' ? '사우스포' : '오소독스'}, 게임 ${g.cfg.difficulty}`,
+      aspect, videoWidth: video.videoWidth, videoHeight: video.videoHeight, model, delegate: delegate ?? '',
+    },
+    frames: gameFrames,
+  };
+  const t0 = gameFrames[0].t;
+  const out = JSON.parse(serializeRecording(rec)) as Record<string, unknown>;
+  out.game = {
+    difficulty: g.cfg.difficulty,
+    latencyOffsetMs: g.cfg.latencyOffsetMs,
+    lenientKind: g.cfg.lenientKind,
+    mitts: g.mitts.map((m) => ({
+      n: m.n, side: m.side, kind: m.kind, tHit: Math.round(m.tHit - t0), holdUntil: Math.round(m.holdUntil - t0),
+      grade: m.judgement?.grade ?? null, dtMs: m.judgement ? Math.round(m.judgement.dtMs) : null,
+      judgedAt: m.judgement ? Math.round(m.judgement.at - t0) : null, seenKind: m.judgement?.seenKind ?? null,
+    })),
+    stray: g.stray,
+    renderGapsMs: log.renderGapsMs,
+    inferMs: gameInfer,
+  };
+  const stamp = rec.meta.createdAt.replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
+  download(JSON.stringify(out), `rec-game-${stamp}.json`);
+}
 
 let recording: Recording | null = null;
 let lastRecording: Recording | null = null;
