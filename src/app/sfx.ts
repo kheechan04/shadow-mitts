@@ -73,7 +73,19 @@ function ready(): AudioContext | null {
   return ctx && master && !muted ? ctx : null;
 }
 
-interface ToneOpts { type?: OscillatorType; glideTo?: number; delay?: number; attack?: number; bus?: 'fx' | 'master' }
+interface ToneOpts { type?: OscillatorType; glideTo?: number; delay?: number; attack?: number; bus?: 'fx' | 'master'; pan?: number }
+
+/** Route through a stereo panner when asked (−1 left … 1 right). */
+function out(a: AudioContext, node: AudioNode, o: { bus?: 'fx' | 'master'; pan?: number }): void {
+  const dest = o.bus === 'fx' ? fxBus! : master!;
+  if (!o.pan) {
+    node.connect(dest);
+    return;
+  }
+  const p = a.createStereoPanner();
+  p.pan.value = Math.max(-1, Math.min(1, o.pan));
+  node.connect(p).connect(dest);
+}
 
 /** One oscillator with an exponential decay; optional pitch glide. */
 function tone(freq: number, dur: number, gain: number, o: ToneOpts = {}): void {
@@ -89,12 +101,12 @@ function tone(freq: number, dur: number, gain: number, o: ToneOpts = {}): void {
   g.gain.setValueAtTime(0.0001, t);
   g.gain.exponentialRampToValueAtTime(gain, t + att);
   g.gain.exponentialRampToValueAtTime(0.0001, t + att + dur);
-  osc.connect(g).connect(o.bus === 'fx' ? fxBus! : master!);
+  out(a, osc.connect(g), o);
   osc.start(t);
   osc.stop(t + att + dur + 0.03);
 }
 
-interface NoiseOpts { q?: number; sweepTo?: number; delay?: number; attack?: number; bus?: 'fx' | 'master' }
+interface NoiseOpts { q?: number; sweepTo?: number; delay?: number; attack?: number; bus?: 'fx' | 'master'; pan?: number }
 
 /** Filtered noise burst. */
 function burst(dur: number, gain: number, filter: BiquadFilterType, freq: number, o: NoiseOpts = {}): void {
@@ -114,7 +126,7 @@ function burst(dur: number, gain: number, filter: BiquadFilterType, freq: number
   g.gain.setValueAtTime(0.0001, t);
   g.gain.exponentialRampToValueAtTime(gain, t + att);
   g.gain.exponentialRampToValueAtTime(0.0001, t + att + dur);
-  src.connect(f).connect(g).connect(o.bus === 'fx' ? fxBus! : master!);
+  out(a, src.connect(f).connect(g), o);
   src.start(t, Math.random() * 0.5);
   src.stop(t + att + dur + 0.03);
 }
@@ -125,18 +137,27 @@ const semis = (n: number) => Math.pow(2, n / 12);
  * Glove on a focus mitt. `streak` = hits in a row so far; the tonal "bonk" climbs a semitone per
  * hit (resets on a miss), so a clean combo literally sounds like it's building.
  */
-export function hit(grade: Grade, streak = 0): void {
+/**
+ * `side`: which glove landed (−1 left … 1 right on screen) — the hit is panned toward it.
+ * Play-test "타격감이 좀 약하다": a deeper chest "쿵" (sub sine under the thump), a harder crack
+ * and a doubled slap, all a little louder on PERFECT and as the streak grows.
+ */
+export function hit(grade: Grade, streak = 0, side = 0): void {
   if (grade === 'miss') return whiff();
-  const k = grade === 'perfect' ? 1 : grade === 'good' ? 0.8 : 0.55;
+  const k = (grade === 'perfect' ? 1 : grade === 'good' ? 0.8 : 0.55) * (1 + Math.min(streak, 20) * 0.01);
   const step = semis(Math.min(streak, 24));
-  // body: sub thump with a fast pitch drop
-  tone(150, 0.2, 1.0 * k, { glideTo: 42, bus: 'fx' });
-  // snap: the first millisecond of glove on leather
-  burst(0.025, 0.9 * k, 'highpass', 2500, { q: 0.7, bus: 'fx' });
-  // leather slap
-  burst(0.09, 0.8 * k, 'bandpass', grade === 'partial' ? 600 : 1200, { q: 1.4, bus: 'fx' });
+  const pan = side * 0.35;
+  // chest "쿵": long sub sine, centered (low end doesn't localize)
+  tone(72, 0.34, 1.1 * k, { glideTo: 34, bus: 'fx' });
+  // body: thump with a fast pitch drop
+  tone(160, 0.2, 1.0 * k, { glideTo: 45, bus: 'fx', pan });
+  // crack: the first millisecond of glove on leather
+  burst(0.03, 1.2 * k, 'highpass', 2200, { q: 0.7, bus: 'fx', pan });
+  // leather slap, doubled a hair apart so it sounds fat
+  burst(0.1, 0.9 * k, 'bandpass', grade === 'partial' ? 600 : 1150, { q: 1.3, bus: 'fx', pan });
+  burst(0.08, 0.6 * k, 'bandpass', grade === 'partial' ? 800 : 1600, { q: 1.6, bus: 'fx', pan: -pan * 0.5, delay: 0.012 });
   // tonal "bonk" that climbs with the streak
-  tone(330 * step, 0.12, 0.28 * k, { type: 'triangle', glideTo: 250 * step, bus: 'fx' });
+  tone(330 * step, 0.12, 0.28 * k, { type: 'triangle', glideTo: 250 * step, bus: 'fx', pan });
   if (grade === 'perfect') {
     // sparkle on top, also climbing
     tone(1568 * step, 0.18, 0.12, { type: 'square', delay: 0.03 });

@@ -65,6 +65,7 @@ const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 /** Below this the camera status warns (punch recognition drops sharply under ~20 fps). */
 const SLOW_FPS = 20;
 const POW_MS = 260;
+const SPEED_LINES_MS = 130;
 
 export interface GameDeps {
   params: () => Params;
@@ -88,6 +89,8 @@ export class GameController {
   private fx: HTMLCanvasElement;
   private popups: Popup[] = [];
   private pows: Pow[] = [];
+  /** comic "집중선" bursting out from a hit, 130 ms */
+  private speedLines: { x: number; y: number; at: number; strength: number }[] = [];
   private confetti: Confetto[] = [];
   private lastFx = 0;
   /** ms between display frames during play — where the stutter shows up */
@@ -242,6 +245,7 @@ export class GameController {
     this.comboBanner = { text: '', until: 0 };
     this.pows = [];
     this.confetti = [];
+    this.speedLines = [];
     this.renderGaps = [];
     this.lastFrameAt = 0;
     this.session = new GameSession(
@@ -352,9 +356,12 @@ export class GameController {
   }
 
   private onJudged(j: Judgement, now: number): void {
-    this.scene.judged(j, now);
     const g = this.session;
-    hit(j.grade, g ? Math.max(0, g.combo - 1) : 0);
+    const streak = g ? Math.max(0, g.combo - 1) : 0;
+    this.scene.judged(j, now, streak);
+    const pos = this.scene.mittScreenPos(j.mittId);
+    // pan the hit toward where it landed on screen
+    hit(j.grade, streak, pos ? (pos.x / Math.max(1, this.fx.clientWidth)) * 2 - 1 : 0);
     if (g && (j.grade === 'perfect' || j.grade === 'good') && g.combo > 0 && g.combo % 10 === 0) {
       const level = g.combo / 10;
       comboUp(level);
@@ -362,8 +369,11 @@ export class GameController {
       this.comboBanner = { text: `${g.combo} COMBO!`, until: now + 1200 };
       this.burstConfetti(now);
     }
-    const pos = this.scene.mittScreenPos(j.mittId);
     if (!pos) return;
+    if (j.grade === 'perfect' || j.grade === 'good') {
+      this.speedLines.push({ x: pos.x, y: pos.y, at: now, strength: j.grade === 'perfect' ? 1 : 0.65 });
+      if (j.grade === 'perfect' && this.settings.shake) this.edgeFlash();
+    }
     if (j.grade !== 'miss') {
       this.pows.push({
         word: pick(POW_WORDS[j.grade]), x: pos.x, y: pos.y, at: now,
@@ -449,6 +459,15 @@ export class GameController {
       }
       fire(`${m.id}c`, m.tHit, cue);
     }
+  }
+
+  private edgeFlash(): void {
+    const el = $('edgeFlash');
+    el.style.transition = 'none';
+    el.style.opacity = '1';
+    void el.offsetWidth;
+    el.style.transition = 'opacity 220ms ease-out';
+    el.style.opacity = '0';
   }
 
   private flashScreen(strength: number): void {
@@ -539,6 +558,30 @@ export class GameController {
     ctx.clearRect(0, 0, c.clientWidth, c.clientHeight);
     const dt = this.lastFx ? Math.min(0.05, (now - this.lastFx) / 1000) : 0;
     this.lastFx = now;
+
+    // comic speed lines: thin wedges converging on the hit, flying outward and fading fast
+    this.speedLines = this.speedLines.filter((l) => now - l.at < SPEED_LINES_MS);
+    for (const l of this.speedLines) {
+      const age = (now - l.at) / SPEED_LINES_MS;
+      const R = Math.max(c.clientWidth, c.clientHeight) * 0.28 * l.strength;
+      ctx.save();
+      ctx.globalAlpha = (1 - age) * 0.85;
+      ctx.fillStyle = '#1e3a8a';
+      const n = 26;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2 + (i % 2) * 0.07;
+        const r0 = R * (0.28 + age * 0.35) * (0.85 + ((i * 37) % 10) / 30);
+        const r1 = r0 + R * (0.55 - age * 0.25);
+        const wdt = 0.018 + ((i * 13) % 5) * 0.004;
+        ctx.beginPath();
+        ctx.moveTo(l.x + Math.cos(a) * r0, l.y + Math.sin(a) * r0);
+        ctx.lineTo(l.x + Math.cos(a - wdt) * r1, l.y + Math.sin(a - wdt) * r1);
+        ctx.lineTo(l.x + Math.cos(a + wdt) * r1, l.y + Math.sin(a + wdt) * r1);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+    }
 
     // comic impact bursts: a jagged star that pops in, with the sound word on it
     // short: a burst left hanging where the mitt was read as an afterimage

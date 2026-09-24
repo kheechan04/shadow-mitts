@@ -432,3 +432,9 @@ table.arms th:first-child, table.arms td:first-child { text-align: left; color: 
 /* small text button under the results (analysis recording) */
 .linkish { display: block; margin: 10px auto 0; background: none; border: 0; color: #64748b; font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
 .linkish:hover { color: #1e3a8a; }
+
+/* PERFECT: the screen edges flash gold (off with 흔들림·번쩍임) */
+.edge-flash {
+  position: absolute; inset: 0; opacity: 0; pointer-events: none; z-index: 3;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(255, 196, 40, 0.55) 85%, rgba(255, 150, 20, 0.85) 100%);
+}

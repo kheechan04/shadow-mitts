@@ -390,12 +390,16 @@ interface MittView {
  * shake, sparks, flash, shockwave and a zoom kick. (A hit-stop freeze was tried and removed: it
  * stopped every other mitt mid-flight and made them jump — "끊기는 느낌".)
  */
-const IMPACT: Record<Judgement['grade'], { shake: number; sparks: number; flash: number; wave: number; color: number; kick: number }> = {
+// recoil: the view is knocked back (and tipped up) and springs forward — everything on screen moves
+// together, so unlike the old big zoom kick it doesn't make other mitts jump around.
+// Play-test "타격감이 좀 약하다" (after hit-stop and the big zoom were removed): recoil, a glove that
+// sticks to the mitt for a beat, and a stronger flash; all scale up a little with the streak.
+const IMPACT: Record<Judgement['grade'], { shake: number; sparks: number; flash: number; wave: number; color: number; kick: number; recoil: number }> = {
   // kick (zoom) kept small: a big one jolted every other mitt 20–40 px on screen
-  perfect: { shake: 0.065, sparks: 70, flash: 2.4, wave: 1.4, color: 0xffc940, kick: 1.5 },
-  good: { shake: 0.035, sparks: 38, flash: 1.5, wave: 1.0, color: 0x5eead4, kick: 0.8 },
-  partial: { shake: 0.014, sparks: 16, flash: 0.8, wave: 0.6, color: 0x93c5fd, kick: 0 },
-  miss: { shake: 0, sparks: 0, flash: 0, wave: 0, color: 0xffffff, kick: 0 },
+  perfect: { shake: 0.045, sparks: 80, flash: 3.2, wave: 1.6, color: 0xffc940, kick: 1.5, recoil: 0.11 },
+  good: { shake: 0.03, sparks: 44, flash: 2.0, wave: 1.1, color: 0x5eead4, kick: 0.8, recoil: 0.06 },
+  partial: { shake: 0.014, sparks: 16, flash: 0.8, wave: 0.6, color: 0x93c5fd, kick: 0, recoil: 0.02 },
+  miss: { shake: 0, sparks: 0, flash: 0, wave: 0, color: 0xffffff, kick: 0, recoil: 0 },
 };
 
 interface Spark { sprite: THREE.Sprite; vel: THREE.Vector3; at: number; life: number }
@@ -428,12 +432,13 @@ export class GameScene {
     left: new THREE.Vector3(-0.26, 1.2, -0.74),
     right: new THREE.Vector3(0.26, 1.2, -0.74),
   };
-  private thrust: Partial<Record<Side, { at: number; to: THREE.Vector3 }>> = {};
+  private thrust: Partial<Record<Side, { at: number; to: THREE.Vector3; landed: boolean }>> = {};
   private flashes: { sprite: THREE.Sprite; at: number }[] = [];
   private sparks: Spark[] = [];
   private waves: Wave[] = [];
   private shake = { amp: 0, at: 0 };
   private fovKick = { amount: 0, at: 0 };
+  private recoil = { amount: 0, at: 0 };
   private lastRender = 0;
   /** accessibility: screen shake can be turned off in the menu */
   shakeEnabled = true;
@@ -595,16 +600,18 @@ export class GameScene {
   punch(side: Side, now: number, mittId: number | null): void {
     const v = mittId !== null ? this.views.get(mittId) : undefined;
     const to = v ? v.target.clone() : this.gloves[side].position.clone().add(new THREE.Vector3(0, 0.05, -0.55));
-    this.thrust[side] = { at: now, to };
+    this.thrust[side] = { at: now, to, landed: !!v };
   }
 
-  judged(j: Judgement, now: number): void {
+  judged(j: Judgement, now: number, streak = 0): void {
     const v = this.views.get(j.mittId);
     if (!v) return;
     v.judgedAt = now;
     v.grade = j.grade;
     if (j.grade === 'miss') return;
-    const fx = IMPACT[j.grade];
+    const boost = 1 + Math.min(streak, 20) * 0.02;
+    const base = IMPACT[j.grade];
+    const fx = { ...base, sparks: Math.round(base.sparks * boost), flash: base.flash * boost, recoil: base.recoil * boost };
     const normal = new THREE.Vector3(0, 0, 1).applyEuler(v.group.rotation);
     const hitPoint = v.target.clone().addScaledVector(normal, 0.12);
 
@@ -643,6 +650,7 @@ export class GameScene {
 
     if (this.shakeEnabled && fx.shake > 0) this.shake = { amp: Math.max(this.shake.amp * 0.5, fx.shake), at: now };
     if (fx.kick) this.fovKick = { amount: fx.kick, at: now };
+    if (this.shakeEnabled && fx.recoil) this.recoil = { amount: fx.recoil, at: now };
   }
 
   /**
@@ -755,16 +763,23 @@ export class GameScene {
       const th = this.thrust[s];
       if (th) {
         const t = now - th.at;
-        const outMs = 110;
-        const backMs = 240;
-        if (t > outMs + backMs) delete this.thrust[s];
+        const outMs = 90;
+        // on a hit the glove stays buried in the mitt for a beat (only this glove — a global
+        // hit-stop froze the other mitts and read as stutter)
+        const holdMs = th.landed ? 80 : 0;
+        const backMs = 230;
+        if (t > outMs + holdMs + backMs) delete this.thrust[s];
         else {
-          const u = t < outMs ? t / outMs : 1 - (t - outMs) / backMs;
-          const reach = th.to.clone().add(new THREE.Vector3(0, 0, 0.12));
+          const u = t < outMs ? t / outMs : t < outMs + holdMs ? 1 : 1 - (t - outMs - holdMs) / backMs;
+          const reach = th.to.clone().add(new THREE.Vector3(0, 0, th.landed ? 0.06 : 0.12));
           goal = rest.clone().lerp(reach, Math.sin((u * Math.PI) / 2));
+          // squashed flat against the pad while it's in contact
+          const squash = th.landed && t >= outMs && t < outMs + holdMs + 60 ? 1 - 0.22 * Math.sin(Math.min(1, (t - outMs) / (holdMs + 60)) * Math.PI) : 1;
+          glove.scale.set(2 - squash, 2 - squash, squash);
         }
       }
-      glove.position.lerp(goal, th ? 0.6 : 0.35);
+      if (!this.thrust[s]) glove.scale.setScalar(1);
+      glove.position.lerp(goal, th ? (th.landed ? 0.85 : 0.6) : 0.35);
       // knuckles tipped up and slightly inward, like a guard seen from behind
       glove.rotation.set(deg(22), s === 'left' ? deg(10) : deg(-10), s === 'left' ? deg(-14) : deg(14));
     }
@@ -808,13 +823,19 @@ export class GameScene {
     // camera shake (decays over ~250 ms) and a small zoom kick on PERFECT
     const shakeAge = (now - this.shake.at) / 250;
     const amp = shakeAge < 1 ? this.shake.amp * (1 - shakeAge) ** 2 : 0;
-    this.camera.position.set(
-      (Math.random() - 0.5) * 2 * amp,
-      1.6 + (Math.random() - 0.5) * 2 * amp,
-      (Math.random() - 0.5) * amp,
-    );
-    this.camera.lookAt(0, 1.45, -3);
-    this.camera.rotation.z += (Math.random() - 0.5) * amp * 1.5;
+    // a damped wobble (~11 Hz) instead of random per-frame offsets: random jumps every frame read
+    // as stutter in the frame-by-frame trace (single-frame steps of ~30 px on the other mitts)
+    const ph = (now - this.shake.at) / 1000;
+    const wob = (hz: number, off: number) => Math.sin((ph * hz + off) * Math.PI * 2);
+    this.camera.position.set(amp * wob(11, 0), 1.6 + amp * wob(13, 0.3), 0);
+    // recoil: back over ~70 ms, eases forward by ~220 ms (a faster snap moved side mitts 44 px in
+    // one frame, which reads as a stutter)
+    const rAge = (now - this.recoil.at) / 220;
+    const rec = rAge < 1 ? this.recoil.amount * Math.sin(Math.min(1, rAge * 3.2) * Math.PI * 0.5) * (1 - rAge) ** 1.5 * 1.6 : 0;
+    this.camera.position.z += rec;
+    this.camera.position.y += rec * 0.25;
+    this.camera.lookAt(0, 1.45 + rec * 0.6, -3);
+    this.camera.rotation.z += amp * 0.8 * wob(9, 0.6);
     const kickAge = (now - this.fovKick.at) / 200;
     const fov = 52 - (kickAge < 1 ? this.fovKick.amount * Math.sin(kickAge * Math.PI) : 0);
     if (this.camera.fov !== fov) {
