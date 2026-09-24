@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "eval": "tsx scripts/eval.ts"
+    "eval": "tsx scripts/eval.ts",
+    "game-report": "tsx scripts/game-report.ts",
+    "fps-check": "tsx scripts/fps-check.ts"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",
