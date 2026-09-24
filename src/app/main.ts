@@ -61,6 +61,8 @@ let fpsCount = 0;
 let fps = NaN;
 let fpsWindowStart = performance.now();
 let gpuRetried = false;
+/** whether the loaded detector was asked for GPU (it may have fallen back to CPU) */
+let requestedGpu = false;
 
 function showBanner(text: string, ok = false): void {
   banner.textContent = text;
@@ -84,13 +86,14 @@ function stopCamera(): void {
 
 async function ensureLandmarker(): Promise<void> {
   const wantModel = $<HTMLSelectElement>('model').value as ModelVariant;
-  const forceCpu = $<HTMLInputElement>('forceCpu').checked;
-  if (landmarker && model === wantModel && (!forceCpu || delegate === 'CPU')) return;
+  const useGpu = $<HTMLInputElement>('useGpu').checked;
+  if (landmarker && model === wantModel && useGpu === requestedGpu) return;
+  requestedGpu = useGpu;
   landmarker?.close();
   landmarker = null;
   showBanner(`포즈 모델(${wantModel}) 로딩 중…`, true);
   // ?mainthread runs inference on the main thread (the pre-worker behaviour), for comparison
-  const loaded = await loadLandmarker(wantModel, forceCpu, !new URLSearchParams(location.search).has('mainthread'));
+  const loaded = await loadLandmarker(wantModel, useGpu, !new URLSearchParams(location.search).has('mainthread'));
   landmarker = loaded.landmarker;
   delegate = loaded.delegate;
   model = loaded.model;
@@ -275,7 +278,7 @@ async function onVideoFrame(captureTime: number | undefined): Promise<void> {
     if (delegate === 'GPU' && !gpuRetried) {
       gpuRetried = true;
       showBanner('GPU 추론 실패 → CPU로 재시도합니다');
-      $<HTMLInputElement>('forceCpu').checked = true;
+      $<HTMLInputElement>('useGpu').checked = false;
       mode = 'loading';
       try {
         await ensureLandmarker();

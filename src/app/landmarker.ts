@@ -145,18 +145,20 @@ async function create(model: ModelVariant, delegate: Delegate, useWorker = true)
   }
 }
 
-/** Try GPU first, fall back to CPU. `forceCpu` skips the GPU attempt. */
-export async function loadLandmarker(model: ModelVariant, forceCpu = false, useWorker = true): Promise<LoadedLandmarker> {
+/**
+ * CPU by default: in play the 3D view and the pose model share the GPU. Two games on the
+ * play-tester's PC, same difficulty: GPU 65 ms/frame, 15 detections/s; CPU 49 ms, 20/s — and 20
+ * vs 12 PERFECTs. `useGpu` tries GPU first and falls back to CPU.
+ */
+export async function loadLandmarker(model: ModelVariant, useGpu = false, useWorker = true): Promise<LoadedLandmarker> {
   let gpuError: string | undefined;
-  if (!forceCpu) {
+  if (useGpu) {
     try {
       return { landmarker: await create(model, 'GPU', useWorker), delegate: 'GPU', model };
     } catch (e) {
       gpuError = e instanceof Error ? e.message : String(e);
       console.warn('GPU delegate failed, falling back to CPU:', e);
     }
-  } else {
-    gpuError = 'CPU 강제';
   }
   return { landmarker: await create(model, 'CPU', useWorker), delegate: 'CPU', model, gpuError };
 }
