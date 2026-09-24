@@ -573,8 +573,14 @@ table.arms th:first-child, table.arms td:first-child { text-align: left; color: 
 }
 
 /* ---------------------------------------------------------------- M5: first-visit checklist */
-/* dims only the menu side so the camera preview (right) stays clear while checking distance */
-.onboard { place-items: center start; padding-left: 3.5vw; background: linear-gradient(90deg, rgba(15, 23, 42, 0.42) 0 60%, rgba(15, 23, 42, 0) 60%); }
+/* dims only the menu side so the camera preview (right) stays clear while checking distance.
+   The edge follows the camera's measured left (--mc-left, GameController.alignMenuCam) and fades
+   out just before it — a fixed 60% edge cut straight across the camera frame at 1280–1440 px wide
+   (seen in Vercel's first-visit preview). */
+.onboard {
+  place-items: center start; padding-left: 3.5vw;
+  background: linear-gradient(90deg, rgba(15, 23, 42, 0.42) 0, rgba(15, 23, 42, 0.42) calc(var(--mc-left, 60vw) - 56px), rgba(15, 23, 42, 0) calc(var(--mc-left, 60vw) - 12px));
+}
 .onboard-card { width: min(520px, 92vw); text-align: left; }
 .onboard-card h2 { text-align: center; }
 .checks { list-style: none; margin: 4px 0 12px; padding: 0; display: grid; gap: 10px; }
