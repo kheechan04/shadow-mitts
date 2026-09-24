@@ -413,3 +413,6 @@ table.arms th:first-child, table.arms td:first-child { text-align: left; color: 
 .grade { -webkit-text-stroke: 4px var(--navy); paint-order: stroke fill; }
 .weak { border: 2px solid var(--red); }
 .panel, .panel button, .panel select, .panel input { font-family: 'Noto Sans KR', system-ui, sans-serif; }
+
+.tip { margin: 14px 0 0; padding: 8px 14px; border-radius: 14px; background: #fff4d6; border: 2px dashed var(--gold); color: #6b4a00; font-size: 14px; text-align: center; }
+.tip b { color: var(--red); font-weight: 400; }

@@ -12,7 +12,7 @@ import type { Params } from '../core/params';
 import type { Side, Stance } from '../core/pose';
 import type { PunchEvent } from '../core/punch';
 import { GameScene, type HandInput } from './scene3d';
-import { cue, setMuted, tick, uiClick, unlockAudio } from './sfx';
+import { bell, comboUp, countBeep, cue, hit, setMuted, tick, uiClick, unlockAudio } from './sfx';
 
 const SETTINGS_KEY = 'shadowmitts.game.v2';
 const GUARD_HISTORY_MS = 2000;
@@ -23,10 +23,12 @@ interface Settings {
   roundSec: number;
   lenient: boolean;
   sound: boolean;
+  /** accessibility: camera shake on hits */
+  shake: boolean;
   offsetMs: number;
 }
 
-const DEFAULTS: Settings = { difficulty: 'normal', rounds: 1, roundSec: 60, lenient: true, sound: true, offsetMs: 150 };
+const DEFAULTS: Settings = { difficulty: 'normal', rounds: 1, roundSec: 60, lenient: true, sound: true, shake: true, offsetMs: 150 };
 
 function loadSettings(): Settings {
   try {
@@ -71,6 +73,10 @@ export class GameController {
   private cued = new Set<string>();
   private raf = 0;
   private lastBig = '';
+  /** "10 COMBO!" banner */
+  private comboBanner = { text: '', until: 0 };
+  /** last phase/second a sound cue was played for (countdown beeps, round bells) */
+  private phaseCueKey = '';
 
   constructor(private deps: GameDeps) {
     this.scene = new GameScene($<HTMLCanvasElement>('scene3d'), `${import.meta.env.BASE_URL}assets/gym-bright.jpg`);
@@ -127,6 +133,10 @@ export class GameController {
     pick('lenSeg', 'data-v', (v) => (s.roundSec = Number(v)));
     const lenient = $<HTMLInputElement>('gLenient');
     const sound = $<HTMLInputElement>('gSound');
+    const shake = $<HTMLInputElement>('gShake');
+    shake.checked = s.shake;
+    this.scene.shakeEnabled = s.shake;
+    shake.addEventListener('change', () => { s.shake = shake.checked; this.scene.shakeEnabled = s.shake; this.save(); });
     const offset = $<HTMLInputElement>('gOffset');
     lenient.checked = s.lenient;
     sound.checked = s.sound;
@@ -189,6 +199,8 @@ export class GameController {
     this.scene.clear();
     this.cued.clear();
     this.calib = null;
+    this.phaseCueKey = '';
+    this.comboBanner = { text: '', until: 0 };
     this.session = new GameSession(
       {
         stance: this.deps.stance(), difficulty: s.difficulty, lenientKind: s.lenient,
@@ -292,6 +304,12 @@ export class GameController {
 
   private onJudged(j: Judgement, now: number): void {
     this.scene.judged(j, now);
+    hit(j.grade);
+    const g = this.session;
+    if (g && (j.grade === 'perfect' || j.grade === 'good') && g.combo > 0 && g.combo % 10 === 0) {
+      comboUp();
+      this.comboBanner = { text: `${g.combo} COMBO!`, until: now + 900 };
+    }
     const pos = this.scene.mittScreenPos(j.mittId);
     if (!pos) return;
     this.popups.push({
@@ -328,8 +346,23 @@ export class GameController {
     this.cueBeats(g.mitts, now);
     this.scene.render(g.mitts, g.cfg.stance, g.spec.approachMs, g.spec.holdMs, g.settleMs, now, handsFresh);
     this.drawFx(now);
+    this.phaseCues(g, now);
     this.updateHud(g, now);
     if (g.phaseAt(now).phase === 'done') this.finish();
+  }
+
+  /** Countdown beeps, the bell at the start of a round and ding-ding-ding at its end. */
+  private phaseCues(g: GameSession, now: number): void {
+    const ph = g.phaseAt(now);
+    const key = ph.phase === 'countdown' ? `c${Math.ceil(ph.msLeft / 1000)}` : `${ph.phase}${ph.round}`;
+    if (key === this.phaseCueKey) return;
+    const prev = this.phaseCueKey;
+    this.phaseCueKey = key;
+    if (ph.phase === 'countdown') countBeep();
+    else if (ph.phase === 'round') {
+      if (prev.startsWith('c')) countBeep(true);
+      bell(1);
+    } else if (ph.phase === 'rest' || ph.phase === 'done') bell(3);
   }
 
   /** "틱 틱" before the first mitt of each combo, "딱" as each mitt lands. */
@@ -375,6 +408,8 @@ export class GameController {
       this.setBig(`${Math.ceil(ph.msLeft / 1000)}`, true);
     } else if (ph.phase === 'round' && now - g.roundStart(ph.round) < 800) {
       this.setBig(ph.round === 0 ? 'FIGHT!' : `ROUND ${ph.round + 1}`, true);
+    } else if (now < this.comboBanner.until) {
+      this.setBig(this.comboBanner.text, true);
     } else if (ph.phase === 'rest') {
       this.setBig(`휴식<small>${Math.ceil(ph.msLeft / 1000)}초 후 다음 라운드</small>`);
     } else this.setBig('');

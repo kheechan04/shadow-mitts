@@ -198,7 +198,7 @@ function buildGlove(hand: Side, bump: THREE.Texture): THREE.Group {
   cuff.position.z = 0.13;
   g.add(cuff);
   // dark opening at the wrist end, and a white trim stripe
-  const opening = new THREE.Mesh(new THREE.CircleGeometry(0.072, 32), new THREE.MeshStandardMaterial({ color: 0x0b0b0b, roughness: 0.9 }));
+  const opening = new THREE.Mesh(new THREE.CircleGeometry(0.072, 32), new THREE.MeshStandardMaterial({ color: 0x4a0b10, roughness: 0.8 }));
   opening.position.z = 0.195;
   g.add(opening);
   const trim = new THREE.Mesh(
@@ -379,7 +379,20 @@ interface MittView {
   control: THREE.Vector3;
   judgedAt: number | null;
   grade: Judgement['grade'] | null;
+  /** materials that light up on impact */
+  glowMats: THREE.MeshStandardMaterial[];
 }
+
+/** How hard each grade hits (M3 "타격감"): shake, sparks, flash, shockwave. */
+const IMPACT: Record<Judgement['grade'], { shake: number; sparks: number; flash: number; wave: number; color: number }> = {
+  perfect: { shake: 0.035, sparks: 34, flash: 1.6, wave: 1, color: 0xffc940 },
+  good: { shake: 0.018, sparks: 20, flash: 1.0, wave: 0.7, color: 0x5eead4 },
+  partial: { shake: 0.008, sparks: 10, flash: 0.6, wave: 0.45, color: 0x93c5fd },
+  miss: { shake: 0, sparks: 0, flash: 0, wave: 0, color: 0xffffff },
+};
+
+interface Spark { sprite: THREE.Sprite; vel: THREE.Vector3; at: number; life: number }
+interface Wave { mesh: THREE.Mesh; at: number; size: number }
 
 export interface HandInput {
   /** wrist relative to shoulder midpoint, image x in T (+ = un-mirrored image right) */
@@ -403,6 +416,13 @@ export class GameScene {
   };
   private thrust: Partial<Record<Side, { at: number; to: THREE.Vector3 }>> = {};
   private flashes: { sprite: THREE.Sprite; at: number }[] = [];
+  private sparks: Spark[] = [];
+  private waves: Wave[] = [];
+  private shake = { amp: 0, at: 0 };
+  private fovKick = { amount: 0, at: 0 };
+  private lastRender = 0;
+  /** accessibility: screen shake can be turned off in the menu */
+  shakeEnabled = true;
 
   constructor(canvas: HTMLCanvasElement, backdropUrl: string) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -483,6 +503,11 @@ export class GameScene {
     this.views.clear();
     for (const f of this.flashes) this.scene.remove(f.sprite);
     this.flashes = [];
+    for (const s of this.sparks) this.scene.remove(s.sprite);
+    this.sparks = [];
+    for (const w of this.waves) this.scene.remove(w.mesh);
+    this.waves = [];
+    this.shake = { amp: 0, at: 0 };
   }
 
   private makeView(m: Mitt, stance: Stance): MittView {
@@ -530,7 +555,12 @@ export class GameScene {
     ring.position.z = 0.09;
     ghost.add(ring);
     this.scene.add(ghost);
-    return { mitt: m, group, ghost, ring, target, start, control, judgedAt: null, grade: null };
+    const glowMats: THREE.MeshStandardMaterial[] = [];
+    group.traverse((o) => {
+      const mat = (o as THREE.Mesh).material;
+      if (mat instanceof THREE.MeshStandardMaterial) glowMats.push(mat);
+    });
+    return { mitt: m, group, ghost, ring, target, start, control, judgedAt: null, grade: null, glowMats };
   }
 
   /** A punch was detected: throw that glove (toward its mitt when it hit one). */
@@ -545,13 +575,46 @@ export class GameScene {
     if (!v) return;
     v.judgedAt = now;
     v.grade = j.grade;
-    if (j.grade !== 'miss') {
-      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glow, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
-      s.position.copy(v.target).add(new THREE.Vector3(0, 0, 0.1));
-      s.scale.setScalar(0.2);
-      this.scene.add(s);
-      this.flashes.push({ sprite: s, at: now });
+    if (j.grade === 'miss') return;
+    const fx = IMPACT[j.grade];
+    const normal = new THREE.Vector3(0, 0, 1).applyEuler(v.group.rotation);
+    const hitPoint = v.target.clone().addScaledVector(normal, 0.12);
+
+    // flash of light
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glow, color: fx.color, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+    s.position.copy(hitPoint);
+    s.scale.setScalar(0.25 * fx.flash);
+    this.scene.add(s);
+    this.flashes.push({ sprite: s, at: now });
+
+    // sparks burst out of the mitt face, mostly toward the player and outward
+    for (let i = 0; i < fx.sparks; i++) {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glow, color: i % 3 ? fx.color : 0xffffff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+      sp.position.copy(hitPoint);
+      sp.scale.setScalar(0.025 + Math.random() * 0.03);
+      const dir = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.3, Math.random() - 0.5).normalize().multiplyScalar(0.7).add(normal);
+      this.scene.add(sp);
+      this.sparks.push({ sprite: sp, vel: dir.normalize().multiplyScalar(1.5 + Math.random() * 2.5 * fx.wave), at: now, life: 350 + Math.random() * 350 });
     }
+
+    // shockwave ring on the mitt face plane
+    const w = new THREE.Mesh(
+      new THREE.TorusGeometry(MITT_R * MITT_SCALE, 0.012, 8, 48),
+      new THREE.MeshBasicMaterial({ color: fx.color, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }),
+    );
+    w.position.copy(hitPoint);
+    w.rotation.copy(v.group.rotation);
+    this.scene.add(w);
+    this.waves.push({ mesh: w, at: now, size: fx.wave });
+
+    // the mitt lights up
+    for (const m of v.glowMats) {
+      m.emissive = new THREE.Color(fx.color);
+      m.emissiveIntensity = fx.flash;
+    }
+
+    if (this.shakeEnabled && fx.shake > 0) this.shake = { amp: Math.max(this.shake.amp * 0.5, fx.shake), at: now };
+    if (j.grade === 'perfect') this.fovKick = { amount: 2.5, at: now };
   }
 
   /**
@@ -615,8 +678,13 @@ export class GameScene {
           const normal = new THREE.Vector3(0, 0, 1).applyEuler(v.group.rotation);
           v.group.position.copy(v.target).addScaledVector(normal, -0.35 * Math.sin(Math.min(1, age * 2) * Math.PI * 0.5));
           v.group.rotation.x += 0.02;
+          // squash on impact, then spring back
+          const squash = age < 0.25 ? 1 - 0.35 * Math.sin((age / 0.25) * Math.PI) : 1;
+          v.group.scale.set(MITT_SCALE * (1 + (1 - squash) * 0.5), MITT_SCALE * (1 + (1 - squash) * 0.5), MITT_SCALE * squash);
+          for (const m of v.glowMats) m.emissiveIntensity *= 0.9;
         }
-        v.group.scale.setScalar(Math.max(0.01, 1 - age * 0.6));
+        if (v.grade === 'miss') v.group.scale.setScalar(MITT_SCALE * Math.max(0.01, 1 - age * 0.6));
+        else if (age > 0.5) v.group.scale.multiplyScalar(Math.max(0.01, 1 - (age - 0.5) * 2));
       }
     }
 
@@ -660,6 +728,48 @@ export class GameScene {
       }
       f.sprite.scale.setScalar(0.2 + age * 0.9);
       f.sprite.material.opacity = 1 - age;
+    }
+
+    const dt = this.lastRender ? Math.min(0.05, (now - this.lastRender) / 1000) : 0;
+    this.lastRender = now;
+    for (const s of [...this.sparks]) {
+      const age = (now - s.at) / s.life;
+      if (age >= 1) {
+        this.scene.remove(s.sprite);
+        this.sparks.splice(this.sparks.indexOf(s), 1);
+        continue;
+      }
+      s.vel.y -= 4.5 * dt;
+      s.vel.multiplyScalar(1 - 1.8 * dt);
+      s.sprite.position.addScaledVector(s.vel, dt);
+      s.sprite.material.opacity = 1 - age;
+    }
+    for (const w of [...this.waves]) {
+      const age = (now - w.at) / 380;
+      if (age >= 1) {
+        this.scene.remove(w.mesh);
+        this.waves.splice(this.waves.indexOf(w), 1);
+        continue;
+      }
+      w.mesh.scale.setScalar(1 + age * 2.2 * w.size);
+      (w.mesh.material as THREE.MeshBasicMaterial).opacity = 0.9 * (1 - age);
+    }
+
+    // camera shake (decays over ~250 ms) and a small zoom kick on PERFECT
+    const shakeAge = (now - this.shake.at) / 250;
+    const amp = shakeAge < 1 ? this.shake.amp * (1 - shakeAge) ** 2 : 0;
+    this.camera.position.set(
+      (Math.random() - 0.5) * 2 * amp,
+      1.6 + (Math.random() - 0.5) * 2 * amp,
+      (Math.random() - 0.5) * amp,
+    );
+    this.camera.lookAt(0, 1.45, -3);
+    this.camera.rotation.z += (Math.random() - 0.5) * amp * 1.5;
+    const kickAge = (now - this.fovKick.at) / 200;
+    const fov = 52 - (kickAge < 1 ? this.fovKick.amount * Math.sin(kickAge * Math.PI) : 0);
+    if (this.camera.fov !== fov) {
+      this.camera.fov = fov;
+      this.camera.updateProjectionMatrix();
     }
 
     this.renderer.render(this.scene, this.camera);
