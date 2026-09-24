@@ -172,6 +172,8 @@ export class GameController {
     });
     this.refreshMenu();
     setInterval(() => this.refreshMenu(), 400);
+    window.addEventListener('resize', () => this.alignMenuCam());
+    void document.fonts?.ready.then(() => this.alignMenuCam());
   }
 
   get active(): boolean {
@@ -241,7 +243,39 @@ export class GameController {
     $('gCalibrate').addEventListener('click', () => this.startCalibration());
   }
 
+  /**
+   * Menu: line the camera "TV" up with the settings box — same top and bottom (play-test: "높이
+   * 맞추자"). The camera is 4:3, so its width follows the box height, capped by the free room to
+   * the right (then it's centred on the box). Only CSS variables change, so the in-game
+   * picture-in-picture position is untouched.
+   */
+  private alignMenuCam(): void {
+    const stage = $('stage');
+    const box = document.querySelector('.menu-box');
+    if (this.screen !== 'menu' || !box || window.innerWidth <= 900) {
+      stage.style.removeProperty('--mc-top');
+      stage.style.removeProperty('--mc-w');
+      return;
+    }
+    const st = stage.getBoundingClientRect();
+    const r = box.getBoundingClientRect();
+    const border = 8; // 4 px frame top and bottom
+    const gap = Math.max(24, st.width * 0.03);
+    const rightPad = st.width * 0.025;
+    const room = st.right - rightPad - (r.right + gap);
+    let w = ((r.height - border) * 4) / 3 + border;
+    let top = r.top - st.top;
+    if (w > room) {
+      w = room;
+      const h = ((w - border) * 3) / 4 + border;
+      top += (r.height - h) / 2;
+    }
+    stage.style.setProperty('--mc-top', `${Math.round(top)}px`);
+    stage.style.setProperty('--mc-w', `${Math.round(w)}px`);
+  }
+
   private refreshMenu(): void {
+    this.alignMenuCam();
     const s = this.settings;
     const mark = (groupId: string, attr: string, value: string) => {
       for (const b of $(groupId).querySelectorAll('button')) b.classList.toggle('sel', b.getAttribute(attr) === value);

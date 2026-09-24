@@ -550,3 +550,15 @@ table.arms th:first-child, table.arms td:first-child { text-align: left; color: 
   .menu-panel { zoom: 1.2; }
   .stage[data-screen='menu'] .cam-box { width: min(36vw, 720px); }
 }
+
+/* ---------------------------------------------------------------- menu polish: camera lined up with the box, more air */
+@media (min-width: 901px) {
+  /* --mc-top / --mc-w are set from the settings box size (GameController.alignMenuCam) */
+  .stage[data-screen='menu'] .cam-box { top: var(--mc-top, 50%); width: var(--mc-w, min(34vw, 600px)); transform: none; }
+  .face-row { margin: 4px -8px 0; padding: 10px 12px; gap: 12px; }
+  .face-hint { margin: 8px 2px 4px; line-height: 1.55; }
+  .tip { margin-top: 18px; padding: 9px 14px; line-height: 1.5; }
+  .rec-line { margin-top: 12px; line-height: 1.5; }
+  .gbtn.start { margin-top: 18px; }
+  .safety { margin-top: 14px; line-height: 1.5; }
+}
