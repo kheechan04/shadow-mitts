@@ -30,6 +30,8 @@
         <div id="hCall" class="call"></div>
         <div id="hGuard" class="guard"></div>
         <button id="hQuit" class="hud-quit" title="그만 (Esc)">그만</button>
+        <!-- the player's own face reacting to each judgement (only after they took one) -->
+        <div id="react" class="react"><canvas id="reactFace"></canvas><div id="reactTag" class="react-tag"></div></div>
       </div>
       <div id="bigText" class="big-text"></div>
       <div id="flash" class="flash"></div>
@@ -39,6 +41,7 @@
       <div id="camBox" class="cam-box">
         <canvas id="view" width="640" height="480"></canvas>
         <div id="camStatus" class="cam-status">카메라 꺼짐</div>
+        <div id="faceCount" class="face-count"></div>
       </div>
       <video id="video" playsinline muted></video>
       <div id="banner" class="banner hidden"></div>
@@ -59,6 +62,14 @@
               <select id="camera" class="select"><option value="">기본 카메라</option></select>
               <button id="startCam" class="gbtn sky small">켜기</button>
             </div>
+
+            <div class="box-row face-row">
+              <span class="tag">😆 리액션 얼굴</span>
+              <canvas id="faceThumb" class="face-thumb" hidden></canvas>
+              <button id="faceShoot" class="gbtn mint small">3초 뒤 찍기</button>
+              <button id="faceClear" class="gbtn white small" hidden>지우기</button>
+            </div>
+            <p class="hint" id="faceMsg">판정마다 내 얼굴이 웃고 울어요 (선택) · 🔒 사진은 이 기기 밖으로 안 나가고, 저장하지 않아요</p>
 
             <div class="box-label">누가 앞손이에요?</div>
             <div class="seg" id="stanceSeg">
@@ -101,6 +112,7 @@
       <section id="results" class="screen results">
         <div class="result-card">
           <div class="result-top">
+            <canvas id="rFace" class="r-face" hidden></canvas>
             <div id="rGrade" class="grade">A</div>
             <div>
               <div class="label">SCORE</div>

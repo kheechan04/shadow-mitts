@@ -12,6 +12,7 @@ import type { Params } from '../core/params';
 import type { Side, Stance } from '../core/pose';
 import type { PunchEvent } from '../core/punch';
 import { GameScene, type HandInput } from './scene3d';
+import { disposeRenderer, prepareFace, renderAllExpressions, wipe, type ExpressionName } from '../face/reactions';
 import { bell, comboUp, countBeep, cue, hit, setMuted, shout, swish, tick, uiClick, unlockAudio } from './sfx';
 
 const SETTINGS_KEY = 'shadowmitts.game.v2';
@@ -65,6 +66,15 @@ const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 /** Below this the camera status warns (punch recognition drops sharply under ~20 fps). */
 const SLOW_FPS = 20;
 const POW_MS = 260;
+
+const GRADE_FACE: Record<Judgement['grade'], ExpressionName> = { perfect: 'perfect', good: 'good', partial: 'normal', miss: 'miss' };
+const FACE_TAG: Record<ExpressionName, { text: string; color: string }> = {
+  perfect: { text: 'PERFECT!', color: '#f59e0b' },
+  good: { text: 'GOOD!', color: '#10b981' },
+  normal: { text: '…', color: '#64748b' },
+  miss: { text: 'MISS…', color: '#3b82f6' },
+  critical: { text: 'CRITICAL!!', color: '#e11d2e' },
+};
 const SPEED_LINES_MS = 130;
 
 export interface GameDeps {
@@ -76,6 +86,8 @@ export interface GameDeps {
   detectFps: () => number;
   /** download this game's pose frames + schedule + judgements (for analysis) */
   saveGameRecording: () => void;
+  /** the current camera frame, un-mirrored (null when the camera is off) — for the reaction face */
+  grabFrame: () => HTMLCanvasElement | null;
   notify: (msg: string) => void;
 }
 
@@ -91,6 +103,11 @@ export class GameController {
   private pows: Pow[] = [];
   /** comic "집중선" bursting out from a hit, 130 ms */
   private speedLines: { x: number; y: number; at: number; strength: number }[] = [];
+  /** the player's reaction faces (made in this browser from one photo; never stored or sent) */
+  private faces: Record<ExpressionName, HTMLCanvasElement> | null = null;
+  private faceShown: ExpressionName | null = null;
+  private faceAt = 0;
+  private faceBusy = false;
   private confetti: Confetto[] = [];
   private lastFx = 0;
   /** ms between display frames during play — where the stutter shows up */
@@ -126,6 +143,9 @@ export class GameController {
     $('rAgain').addEventListener('click', () => this.start());
     $('rMenu').addEventListener('click', () => this.setScreen('menu'));
     $('rSave').addEventListener('click', () => this.deps.saveGameRecording());
+    $('faceShoot').addEventListener('click', () => void this.shootFace());
+    $('faceClear').addEventListener('click', () => this.clearFaces('지웠어요. 사진은 남아 있지 않아요'));
+    window.addEventListener('pagehide', () => this.clearFaces());
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && (this.screen === 'playing' || this.screen === 'calibrating')) this.finish();
     });
@@ -247,6 +267,7 @@ export class GameController {
     this.confetti = [];
     this.speedLines = [];
     this.renderGaps = [];
+    if (this.faces) this.showFace('normal', performance.now(), 'none');
     this.lastFrameAt = 0;
     this.session = new GameSession(
       {
@@ -359,6 +380,10 @@ export class GameController {
     const g = this.session;
     const streak = g ? Math.max(0, g.combo - 1) : 0;
     this.scene.judged(j, now, streak);
+    if (this.faces && g) {
+      const milestone = (j.grade === 'perfect' || j.grade === 'good') && g.combo > 0 && g.combo % 10 === 0;
+      this.showFace(milestone ? 'critical' : GRADE_FACE[j.grade], now, milestone ? 'critical' : 'pop');
+    }
     const pos = this.scene.mittScreenPos(j.mittId);
     // pan the hit toward where it landed on screen
     hit(j.grade, streak, pos ? (pos.x / Math.max(1, this.fx.clientWidth)) * 2 - 1 : 0);
@@ -420,6 +445,10 @@ export class GameController {
     if (this.lastFrameAt) this.renderGaps.push(Math.round((now - this.lastFrameAt) * 10) / 10);
     this.lastFrameAt = now;
     for (const j of g.update(now)) this.onJudged(j, now);
+    // back to a neutral face when nothing has happened for a moment (CRITICAL stays up longer)
+    if (this.faces && this.faceShown && this.faceShown !== 'normal' && now - this.faceAt > (this.faceShown === 'critical' ? 1600 : 1300)) {
+      this.showFace('normal', now, 'none');
+    }
     this.cueBeats(g.mitts, now);
     this.scene.render(g.mitts, g.cfg.stance, g.spec.approachMs, now, handsFresh);
     this.drawFx(now);
@@ -459,6 +488,100 @@ export class GameController {
       }
       fire(`${m.id}c`, m.tHit, cue);
     }
+  }
+
+  // ---------------------------------------------------------------- reaction face
+
+  private faceMsg(t: string): void {
+    $('faceMsg').textContent = t;
+  }
+
+  /** 3-2-1 on the camera preview, one frame, faces made here in the browser; the frame is wiped. */
+  private async shootFace(): Promise<void> {
+    if (this.faceBusy) return;
+    if (!this.deps.cameraRunning()) {
+      this.faceMsg('먼저 카메라를 켜 주세요');
+      return;
+    }
+    this.faceBusy = true;
+    $<HTMLButtonElement>('faceShoot').disabled = true;
+    try {
+      for (const n of ['3', '2', '1']) {
+        $('faceCount').textContent = n;
+        await new Promise((r) => setTimeout(r, 700));
+      }
+      $('faceCount').textContent = '📸';
+      const frame = this.deps.grabFrame();
+      setTimeout(() => ($('faceCount').textContent = ''), 250);
+      if (!frame) {
+        this.faceMsg('카메라 화면을 가져오지 못했어요. 다시 해 볼까요?');
+        return;
+      }
+      this.faceMsg('표정 만드는 중… (처음엔 얼굴 모델을 받느라 조금 걸려요)');
+      const face = await prepareFace(frame);
+      wipe(frame);
+      if (!face) {
+        this.faceMsg('얼굴을 못 찾았어요. 밝은 곳에서 카메라를 정면으로 보고 다시 찍어 주세요');
+        return;
+      }
+      this.clearFaces();
+      this.faces = renderAllExpressions(face);
+      wipe(face.crop);
+      disposeRenderer();
+      const thumb = $<HTMLCanvasElement>('faceThumb');
+      const src = this.faces.perfect;
+      thumb.width = src.width;
+      thumb.height = src.height;
+      thumb.getContext('2d')!.drawImage(src, 0, 0);
+      thumb.hidden = false;
+      $('faceClear').hidden = false;
+      $('faceShoot').textContent = '다시 찍기';
+      this.faceMsg('준비 완료! 판정마다 내 얼굴이 떠요 · 🔒 이 기기 밖으로 안 나가고, 창을 닫으면 사라져요');
+    } catch (e) {
+      this.faceMsg(`표정을 만들지 못했어요 (${e instanceof Error ? e.message : String(e)})`);
+    } finally {
+      this.faceBusy = false;
+      $<HTMLButtonElement>('faceShoot').disabled = false;
+    }
+  }
+
+  private clearFaces(msg?: string): void {
+    if (this.faces) for (const c of Object.values(this.faces)) wipe(c);
+    this.faces = null;
+    this.faceShown = null;
+    wipe($<HTMLCanvasElement>('faceThumb'));
+    wipe($<HTMLCanvasElement>('reactFace'));
+    wipe($<HTMLCanvasElement>('rFace'));
+    $('faceThumb').hidden = true;
+    $('rFace').hidden = true;
+    $('faceClear').hidden = true;
+    $('faceShoot').textContent = '3초 뒤 찍기';
+    $('react').classList.remove('on');
+    if (msg) this.faceMsg(msg);
+  }
+
+  /** Swap the reaction box to an expression; `pop` bounces it, `critical` swells it for a beat. */
+  private showFace(expr: ExpressionName, now: number, anim: 'pop' | 'critical' | 'none' = 'pop'): void {
+    if (!this.faces) return;
+    const box = $('react');
+    const cv = $<HTMLCanvasElement>('reactFace');
+    const src = this.faces[expr];
+    if (cv.width !== src.width || cv.height !== src.height) {
+      cv.width = src.width;
+      cv.height = src.height;
+    }
+    cv.getContext('2d')!.drawImage(src, 0, 0);
+    const tag = $('reactTag');
+    tag.textContent = FACE_TAG[expr].text;
+    tag.style.color = FACE_TAG[expr].color;
+    box.classList.add('on');
+    box.classList.remove('pop', 'critical');
+    if (anim !== 'none') {
+      void box.offsetWidth; // restart the animation
+      box.classList.add(anim);
+    }
+    this.faceShown = expr;
+    this.faceAt = now;
   }
 
   private edgeFlash(): void {
@@ -732,6 +855,14 @@ export class GameController {
     const acc = g.accuracy();
     const grade = acc >= 0.9 ? 'S' : acc >= 0.8 ? 'A' : acc >= 0.65 ? 'B' : acc >= 0.5 ? 'C' : 'D';
     $('rGrade').textContent = grade;
+    if (this.faces) {
+      const expr: ExpressionName = acc >= 0.85 ? 'perfect' : acc >= 0.65 ? 'good' : acc >= 0.45 ? 'normal' : 'miss';
+      const rf = $<HTMLCanvasElement>('rFace');
+      rf.width = this.faces[expr].width;
+      rf.height = this.faces[expr].height;
+      rf.getContext('2d')!.drawImage(this.faces[expr], 0, 0);
+      rf.hidden = false;
+    } else $('rFace').hidden = true;
     $('rScore').textContent = g.score.toLocaleString();
     $('rMeta').textContent = `정확도 ${Math.round(acc * 100)}% · 최대 ${g.maxCombo} 콤보 · ${DIFFICULTIES[g.cfg.difficulty].label}`;
     const rows = [1, 2, 3, 4, 5, 6]

@@ -42,6 +42,14 @@ const game = new GameController({
   cameraRunning: () => mode === 'camera',
   detectFps: () => fps,
   saveGameRecording: () => saveGameRecording(),
+  grabFrame: () => {
+    if (mode !== 'camera' || !video.videoWidth) return null;
+    const c = document.createElement('canvas');
+    c.width = video.videoWidth;
+    c.height = video.videoHeight;
+    c.getContext('2d')!.drawImage(video, 0, 0);
+    return c;
+  },
   notify: (msg) => showBanner(msg),
 });
 // dev-only handle for automated visual checks (stripped from production builds)

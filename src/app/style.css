@@ -438,3 +438,29 @@ table.arms th:first-child, table.arms td:first-child { text-align: left; color: 
   position: absolute; inset: 0; opacity: 0; pointer-events: none; z-index: 3;
   background: radial-gradient(ellipse at center, transparent 55%, rgba(255, 196, 40, 0.55) 85%, rgba(255, 150, 20, 0.85) 100%);
 }
+
+/* ---------------------------------------------------------------- reaction face (the player's own face) */
+.face-row { gap: 10px; }
+.face-thumb { width: 44px; height: 44px; border-radius: 12px; object-fit: cover; box-shadow: 0 0 0 3px var(--navy); }
+.face-count {
+  position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;
+  font-family: var(--display); font-size: clamp(60px, 9vw, 140px); color: #fff; -webkit-text-stroke: 3px var(--navy);
+}
+.face-count:empty { display: none; }
+.react {
+  position: absolute; right: 62px; top: 14px; width: clamp(104px, 11vw, 160px); display: none;
+  padding: 7px 7px 5px; border-radius: 20px; background: var(--glass); box-shadow: var(--shadow); text-align: center;
+  transform-origin: top right;
+}
+.react.on { display: block; }
+.react canvas { width: 100%; display: block; border-radius: 14px; }
+.react-tag { margin-top: 3px; font-family: var(--display); font-size: clamp(15px, 1.5vw, 22px); line-height: 1.1; -webkit-text-stroke: 1px var(--navy); }
+.react.pop { animation: reactPop 0.28s ease-out; }
+@keyframes reactPop { 0% { transform: scale(1.22) rotate(-5deg); } 60% { transform: scale(0.96) rotate(2deg); } 100% { transform: scale(1); } }
+/* 10-combo CRITICAL: the same box swells from its corner for a beat (kept out of the mitt lanes) */
+.react.critical { animation: reactCrit 1s ease-out; box-shadow: 0 0 0 5px var(--red), var(--shadow); }
+@keyframes reactCrit {
+  0% { transform: scale(0.8) rotate(-8deg); } 15% { transform: scale(1.9) rotate(3deg); } 28% { transform: scale(1.7) rotate(0); }
+  80% { transform: scale(1.7); } 100% { transform: scale(1); }
+}
+.r-face { width: 96px; height: 96px; border-radius: 18px; object-fit: cover; box-shadow: 0 0 0 4px var(--navy); }
