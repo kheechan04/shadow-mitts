@@ -138,3 +138,8 @@ tests/      합성 포즈 단위 테스트 + 녹화 회귀 테스트
 - [MediaPipe](https://developers.google.com/mediapipe) (Apache-2.0), [three.js](https://threejs.org) (MIT)
 - 폰트: Black Han Sans, Jua, Noto Sans KR (Google Fonts, OFL)
 - 체육관 배경 사진: 이미지 생성 AI(Higgsfield)로 제작
+
+## 라이선스
+
+[MIT](LICENSE) — 자유롭게 쓰고 고치고 배포할 수 있어요. 저작권 표시와 라이선스 문구만 남겨 주세요.
+위 크레딧의 라이브러리·폰트는 각자의 라이선스를 따라요.
