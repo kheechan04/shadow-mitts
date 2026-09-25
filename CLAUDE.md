@@ -62,6 +62,8 @@
 `README.md`(소개·풀어낸 문제들) · `docs/USAGE.md`(사용법) · `docs/DEVELOPMENT.md`(설계·결정 기록) ·
 `docs/MODEL-CHOICE.md`(MediaPipe vs YOLO) · `docs/FACE-PRIVACY.md`(얼굴 기능 개인정보 검토) · `docs/M6-PLAN.md`(다음 작업)
 
+문체: 사용자용(`README.md`·`docs/USAGE.md`)은 "\~해요", 개발 문서(나머지)는 "\~한다". 표 칸·목록 항목은 짧은 명사형 가능. `DESIGN.md`는 최초 기획서라 내용을 고치지 않는다.
+
 ## 포트폴리오 갱신 (마일스톤을 마칠 때)
 저장소 `kheechan04/kheechan04.github.io`의 `shadow-mitts/index.html`(요약)·`full.html`(상세)을 같은 스타일로 갱신한다(그 저장소 README의 방법).
 수치는 실제로 잰 것만, 설계 단계의 모델 비교는 "검토"라고만 쓴다(벤치마크 안 함). 그 저장소도 커밋 이메일을 noreply로 설정해서 커밋.

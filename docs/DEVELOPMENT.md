@@ -46,12 +46,18 @@ Shadow Mitts를 이어서 만들거나 고칠 때 지키는 원칙, 구조, 그�
 | `src/core/guard.ts` | 치지 않는 손의 가드 판정 |
 | `src/core/params.ts` | **모든 튜닝 임계값** |
 | `src/core/recording.ts` · `mirror.ts` · `evaluate.ts` | 녹화 형식, 좌우 반전, 녹화 채점 |
+| `src/core/oneEuro.ts` | One Euro 필터 |
+| `src/core/progress.ts` | 적응형 출제 가중치, 약점 리포트 (§6-2) |
 | `src/app/main.ts` | 카메라 루프, 녹화/재생, 개발자 도구 |
 | `src/app/landmarker.ts` | MediaPipe 로드 (GPU → CPU 폴백, WASM 버전 고정). 기본은 Worker, 안 되면 메인 스레드 |
 | `src/app/poseWorker.ts` | Worker 안에서 포즈 추론 (화면 그리기를 막지 않게) |
 | `src/app/scene3d.ts` | 링·미트·글러브 3D 모델, 미트 비행 경로, 표시 각도 |
 | `src/app/gameController.ts` | 메뉴 → 게임 → 결과, HUD, 보정 화면 |
 | `src/app/sfx.ts` | WebAudio 합성 타이밍 사운드 |
+| `src/app/records.ts` · `resultCard.ts` | 로컬 기록, 결과 카드 PNG (§6-2) |
+| `src/app/pwa.ts` | 서비스 워커 등록(프로덕션만) (§6-3) |
+| `src/app/tuning.ts` · `punchUi.ts` · `overlay.ts` · `graph.ts` | 개발자 도구: 튜닝 슬라이더와 설정 저장(바꾼 값만, v2), 펀치 인식 테스트, 포즈 오버레이, 손목 속도·팔꿈치 각도 그래프 |
+| `src/face/reactions.ts` · `warp.ts` · `facelab.ts` | 리액션 얼굴: 얼굴 좌표 → 사진 변형, `face.html` 실험실 |
 | `tests/helpers/synth.ts` | 합성 포즈·펀치 궤적 생성기 |
 
 ## 3. 좌표와 단위 (M0에서 측정해 확정)
@@ -261,7 +267,7 @@ npm run eval -- --mirror  # 좌우 반전 데이터까지
 | M2 | 팔 자세 기반 분류 | "높이로 맞춰야 종류가 맞는다" |
 | M2 | 잽 정면·크로스 중앙 | "잽이랑 크로스가 헷갈린다" |
 | M3 | 히트 스톱·만화 폭발 글자·번쩍임·색종이, 음정이 올라가는 타격음, 팡파르·함성·외침 | "시원하지 않다", "소리가 재미없다" |
-| M2 | 딥 바닥점 추적, 딥 뒤 동작은 몸통 회전·느린 하강 규칙에서 제외, 딥이면 훅 아님 | "어퍼컷을 작게 치면 못 잡는다" — 몸통 회전 필터가 작은 어퍼컷을 버리고 있었음 |
+| M3 | 딥 바닥점 추적, 딥 뒤 동작은 몸통 회전·느린 하강 규칙에서 제외, 딥이면 훅 아님 | "어퍼컷을 작게 치면 못 잡는다" — 몸통 회전 필터가 작은 어퍼컷을 버리고 있었음 |
 | M3 | 낮은 fps 보정(속도 기준 0.75배@15fps), 뻗는 시간 480ms, 주로 아래로 갈 때만 빠른 속도 요구 | "게임에선 훅·어퍼컷을 못 잡는다" — 웹캠이 15fps로 떨어져 있었음 |
 | M3 | 글러브 먼저 내밀기는 확실히 더 빠른 손만 | "오른손 어퍼컷에 왼손 글러브가 크로스" |
 | M3 | 시간 초과로 사라진 미트는 miss 판정(0.3\~0.5초 뒤) 때 다시 나타나지 않음, 그 MISS 글자는 미트 위쪽에 | "miss 한 번 나면 꼬이고 버벅인다" — 사라진 미트가 판정 순간 되살아나 다음 미트와 겹쳤음 |
