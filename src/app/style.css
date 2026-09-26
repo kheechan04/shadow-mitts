@@ -606,3 +606,60 @@ button:focus-visible, input:focus-visible, select:focus-visible, .toggle:focus-w
   .logo-wrap, .logo-glove, .sunburst, .gbtn.start, .face-row.need { animation: none !important; }
   .cam-box, .gate-card { transition: none !important; }
 }
+
+/* ---------------------------------------------------------------- "?" 플레이 방법 (how to play, punches 1–6) */
+.guide-btn {
+  display: none; position: absolute; right: 62px; top: 10px; z-index: 25; width: 46px; height: 46px; border-radius: 50%;
+  border: 3px solid var(--navy); background: #ffd23f; color: var(--navy); font-family: var(--display); font-size: 26px; line-height: 1;
+  box-shadow: 0 4px 0 #d99a00, 0 4px 0 3px var(--navy); transition: transform 0.12s;
+}
+.guide-btn:hover { transform: translateY(-1px) rotate(-8deg); }
+.guide-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #d99a00, 0 1px 0 3px var(--navy); }
+.stage[data-screen='menu'] .guide-btn, .stage[data-screen='results'] .guide-btn { display: block; }
+.guide { z-index: 45; padding: 16px; }
+.guide-card { position: relative; width: min(860px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; text-align: left; padding: 22px 24px 20px; }
+.guide-card h2 { text-align: center; margin-top: 0; }
+.guide-card .gbtn.start.small { display: block; margin: 16px auto 0; }
+.guide-close { position: absolute; right: 14px; top: 12px; width: 36px; height: 36px; border-radius: 50%; border: 0; background: #eef2ff; color: var(--navy); font-size: 17px; }
+.guide-close:hover { background: #e0e7ff; }
+.g-defs { position: absolute; }
+.guide-card section + section { margin-top: 18px; padding-top: 14px; border-top: 2px dashed rgba(30, 58, 138, 0.18); }
+.guide-card h3 { margin: 0 0 10px; font-family: var(--display); font-weight: 400; font-size: 22px; color: var(--navy); }
+.guide-card h3 small { margin-left: 8px; font-family: var(--body); font-size: 14px; color: var(--muted); }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.steps li { display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: start; padding: 10px 12px; border-radius: 16px; background: #f5f7ff; border: 2px solid rgba(30, 58, 138, 0.15); }
+.steps li i { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--navy); color: #fff; font-style: normal; font-family: var(--display); font-size: 16px; }
+.steps li > div > b { display: block; font-size: 17px; font-weight: 400; color: var(--navy); }
+.steps small { display: block; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.steps small b { font-weight: 400; color: var(--ink); }
+.hand { white-space: nowrap; font-weight: 400; }
+.hand.L, .pc-hand.L { color: var(--left); }
+.hand.R, .pc-hand.R { color: var(--right); }
+.demo { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px 1px 2px; border-radius: 999px; background: #fff; box-shadow: 0 1px 4px rgba(15, 23, 42, 0.15); color: var(--ink); white-space: nowrap; }
+.demo em, .pc-head b { display: inline-grid; place-items: center; border-radius: 50%; color: #fff; font-style: normal; font-family: var(--display); font-weight: 400; }
+.demo em { width: 20px; height: 20px; font-size: 12px; }
+.demo em.L, .pc-head b.L { background: var(--left); }
+.demo em.R, .pc-head b.R { background: var(--right); }
+.g-note, .g-rule { margin: 10px 0 0; color: var(--ink); font-size: 14px; line-height: 1.55; }
+.g-note b, .g-rule b { font-weight: 400; color: var(--red); }
+.g-rule { margin: 0 0 10px; }
+.prow-labels, .pgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.prow-labels span { text-align: center; font-size: 13px; color: var(--navy); background: #eef2ff; border-radius: 999px; padding: 2px 0; }
+.pgrid { list-style: none; margin: 8px 0 0; padding: 0; }
+.pcard { padding: 8px 12px 12px; border-radius: 16px; background: #fff; border: 2px solid rgba(30, 58, 138, 0.15); }
+.pcard .fig { display: block; width: 100%; max-width: 150px; height: auto; margin: 0 auto; background: #f8fafc; border-radius: 12px; }
+.pc-head { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 18px; color: var(--ink); }
+.pc-head b { width: 30px; height: 30px; font-size: 18px; }
+.pc-hand { margin-top: 2px; font-size: 14px; }
+.pcard p { margin: 4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.pcard p b { font-weight: 400; color: var(--ink); }
+/* narrow: the camera preview takes the top-right corner, so the button floats bottom-right */
+@media (max-width: 900px) {
+  .guide-btn { top: auto; bottom: 16px; right: 16px; width: 52px; height: 52px; }
+}
+@media (max-width: 700px) {
+  .steps { grid-template-columns: 1fr; }
+  .prow-labels { display: none; }
+  .pgrid { grid-template-columns: 1fr 1fr; }
+  .pcard { order: var(--n); }
+}

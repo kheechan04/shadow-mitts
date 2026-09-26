@@ -11,6 +11,7 @@ import { guardOk } from '../core/guard';
 import type { Params } from '../core/params';
 import type { Side, Stance } from '../core/pose';
 import type { PunchEvent } from '../core/punch';
+import { guideHtml } from './guide';
 import { GameScene, type HandInput } from './scene3d';
 import { adaptiveWeights, recordGame, statAccuracy, weakestPunch, type GameRecord, type Progress } from '../core/progress';
 import { clearProgress, loadProgress, saveProgress } from './records';
@@ -180,12 +181,16 @@ export class GameController {
     $('faceClear').addEventListener('click', () => this.clearFaces('지웠어요. 사진은 남아 있지 않아요'));
     window.addEventListener('pagehide', () => this.clearFaces());
     window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !$('guide').hidden) this.hideGuide();
       if (e.key === 'Escape' && (this.screen === 'playing' || this.screen === 'calibrating')) this.finish();
     });
     this.refreshMenu();
     setInterval(() => this.refreshMenu(), 400);
     window.addEventListener('resize', () => this.alignMenuCam());
     $('obOpen').addEventListener('click', () => this.showOnboarding(true));
+    $('guideOpen').addEventListener('click', () => this.showGuide());
+    for (const id of ['guideClose', 'guideDone']) $(id).addEventListener('click', () => this.hideGuide());
+    $('guide').addEventListener('click', (e) => { if (e.target === $('guide')) this.hideGuide(); });
     $('obCamBtn').addEventListener('click', () => $('startCam').click());
     $('obDone').addEventListener('click', () => {
       try {
@@ -302,6 +307,19 @@ export class GameController {
     stage.style.setProperty('--mc-top', `${Math.round(top)}px`);
     stage.style.setProperty('--mc-w', `${Math.round(w)}px`);
     stage.style.setProperty('--mc-left', `${Math.round(left - st.left)}px`);
+  }
+
+  /** "?" button: how to play and punches 1–6, drawn for the stance picked on the menu. */
+  private showGuide(): void {
+    uiClick();
+    $('guideBody').innerHTML = guideHtml(this.deps.stance());
+    $('guide').hidden = false;
+    $('guideClose').focus();
+  }
+
+  private hideGuide(): void {
+    $('guide').hidden = true;
+    $('guideOpen').focus();
   }
 
   /** First visit (or "❔ 처음 안내"): the live checklist. */

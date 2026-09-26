@@ -142,7 +142,18 @@
           </ol>
           <p class="ob-tip">👊 펀치는 <b>크고 또렷하게</b> · 🛡 안 치는 손은 <b>턱 앞에</b> · ⚠️ 주변 1.5m 비우기</p>
           <button id="obDone" class="gbtn start small">좋아요, 시작할게요!</button>
-          <p class="gate-msg">메뉴 아래 "❔ 처음 안내"로 다시 볼 수 있어요</p>
+          <p class="gate-msg">메뉴 아래 "❔ 처음 안내"로 다시 볼 수 있어요 · 펀치 1~6 설명은 오른쪽 위 <b>?</b> 버튼</p>
+        </div>
+      </div>
+
+      <!-- "?" 플레이 방법: how to play + punches 1–6 (menu and results only) -->
+      <button id="guideOpen" class="guide-btn" title="플레이 방법" aria-label="플레이 방법">?</button>
+      <div id="guide" class="face-gate guide" hidden>
+        <div class="gate-card guide-card" role="dialog" aria-modal="true" aria-labelledby="guideTitle">
+          <button id="guideClose" class="guide-close" aria-label="닫기">✕</button>
+          <h2 id="guideTitle">플레이 방법</h2>
+          <div id="guideBody"></div>
+          <button id="guideDone" class="gbtn start small">알겠어요!</button>
         </div>
       </div>
 
