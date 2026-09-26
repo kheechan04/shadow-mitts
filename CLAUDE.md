@@ -4,7 +4,7 @@
 저장소: github.com/kheechan04/shadow-mitts (public) · 포트폴리오: https://kheechan04.github.io/shadow-mitts/
 
 ## 현재 상태 (2026-09-24 기준)
-- M0\~M5 완료·배포됨(사용자 확인 완료). **다음은 M6 디펜스(슬립·더킹 → 위빙)** — 계획과 녹화 요청은 `docs/M6-PLAN.md`.
+- M0\~M5 완료·배포됨(사용자 확인 완료). M5 이후 "?" 플레이 방법(펀치 1\~6 그림·자동 보정 안내, `src/app/guide.ts`) 추가·확인 완료. **다음은 M6 디펜스(슬립·더킹 → 위빙)** — 계획과 녹화 요청은 `docs/M6-PLAN.md`.
 - 설계서는 `DESIGN.md`(사용자가 별도 Claude 대화에서 만듦). 모든 결정과 근거 수치는 `docs/DEVELOPMENT.md`의 결정 기록 표.
 
 ## 사용자
