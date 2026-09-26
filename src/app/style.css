@@ -617,6 +617,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, .toggle:focus-w
 .guide-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #d99a00, 0 1px 0 3px var(--navy); }
 .stage[data-screen='menu'] .guide-btn, .stage[data-screen='results'] .guide-btn { display: block; }
 .guide { z-index: 45; padding: 16px; }
+/* the stage is its own stacking layer, so the fixed ⚙ would sit on top of the card on phones */
+body:has(#guide:not([hidden])) .dev-toggle { display: none; }
 .guide-card { position: relative; width: min(860px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; text-align: left; padding: 22px 24px 20px; }
 .guide-card h2 { text-align: center; margin-top: 0; }
 .guide-card .gbtn.start.small { display: block; margin: 16px auto 0; }
@@ -640,6 +642,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, .toggle:focus-w
 .demo em { width: 20px; height: 20px; font-size: 12px; }
 .demo em.L, .pc-head b.L { background: var(--left); }
 .demo em.R, .pc-head b.R { background: var(--right); }
+.g-calib { margin-top: 10px; padding: 10px 14px; border-radius: 16px; background: #ecfdf5; border: 2px solid #10b981; }
+.g-calib > b { display: block; font-size: 17px; font-weight: 400; color: #047857; }
+.g-calib small { display: block; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.g-calib small b { font-weight: 400; color: var(--ink); }
 .g-note, .g-rule { margin: 10px 0 0; color: var(--ink); font-size: 14px; line-height: 1.55; }
 .g-note b, .g-rule b { font-weight: 400; color: var(--red); }
 .g-rule { margin: 0 0 10px; }

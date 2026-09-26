@@ -5,6 +5,7 @@
 // upright forearm with a low elbow = uppercut, the rest = straight).
 
 import { PUNCH_NAMES } from '../core/classify';
+import { CALIBRATION } from '../core/game';
 import { leadSide, type Side, type Stance } from '../core/pose';
 
 type Kind = 'straight' | 'hook' | 'uppercut';
@@ -104,6 +105,8 @@ export function guideHtml(stance: Stance): string {
           <span class="demo"><em class="${L(lead)}">1</em>잽</span> › <span class="demo"><em class="${L(rear)}">2</em>크로스</span> 이면 잽 다음 바로 크로스</small></div></li>
         <li><i>4</i><div><b>안 치는 손은 턱 앞에</b><small>가드를 올리고 있으면 점수 <b>+20%</b>. 화면 아래에 가드 표시가 나와요.</small></div></li>
       </ol>
+      <div class="g-calib"><b>⏱ 처음 한 번은 "자동 보정"</b><small>메뉴의 <b>자동 보정</b>을 누르고, 미트가 링에 겹칠 때마다 아무 손으로 <b>잽 ${CALIBRATION.beats}번</b>.
+        카메라·인식이 늦는 만큼 판정 시간을 맞춰 줘서 PERFECT가 잘 나와요. 결과는 저장되니 카메라나 장소를 바꿨을 때만 다시 하면 돼요.</small></div>
       <p class="g-note">👀 어디를 치는지는 안 봐요 — <b>어느 손</b>으로 <b>어떤 펀치</b>를 <b>언제</b> 쳤는지만 봐요. 펀치는 <b>크고 또렷하게!</b></p>
     </section>
     <section>
