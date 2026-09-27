@@ -6,3 +6,6 @@ recordings/*.json
 
 # personal shortcut to the live site (kept local)
 *.url
+
+# Windows shortcuts made on this PC (e.g. the installed app) — local only
+*.lnk
