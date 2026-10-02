@@ -3,8 +3,9 @@
 웹캠 포즈 인식만으로 복싱 미트를 치는 브라우저 게임. 배포: https://shadow-mitts.vercel.app ·
 저장소: github.com/kheechan04/shadow-mitts (public) · 포트폴리오: https://kheechan04.github.io/shadow-mitts/
 
-## 현재 상태 (2026-09-24 기준)
-- M0\~M5 완료·배포됨(사용자 확인 완료). M5 이후 "?" 플레이 방법(펀치 1\~6 그림·자동 보정 안내, `src/app/guide.ts`) 추가·확인 완료. **다음은 M6 디펜스(슬립·더킹 → 위빙)** — 계획과 녹화 요청은 `docs/M6-PLAN.md`.
+## 현재 상태 (2026-10-03 기준)
+- **프로젝트 완료.** M0\~M5 완료·배포됨(사용자 확인 완료). M5 이후 "?" 플레이 방법(펀치 1\~6 그림·자동 보정 안내, `src/app/guide.ts`) 추가·확인 완료.
+  저장소·포트폴리오에는 완성된 프로젝트로 정리돼 있다 — 사용자가 새 작업을 요청하기 전에는 "다음 계획/예정" 문구를 공개 문서에 넣지 않는다.
 - 설계서는 `DESIGN.md`(사용자가 별도 Claude 대화에서 만듦). 모든 결정과 근거 수치는 `docs/DEVELOPMENT.md`의 결정 기록 표.
 
 ## 사용자
@@ -60,8 +61,7 @@
 
 ## 문서
 `README.md`(소개·풀어낸 문제들) · `docs/USAGE.md`(사용법) · `docs/DEVELOPMENT.md`(설계·결정 기록) ·
-`docs/MODEL-CHOICE.md`(MediaPipe vs YOLO) · `docs/FACE-PRIVACY.md`(얼굴 기능 개인정보 검토) · `docs/M6-PLAN.md`(다음 작업)
-
+`docs/MODEL-CHOICE.md`(MediaPipe vs YOLO) · `docs/FACE-PRIVACY.md`(얼굴 기능 개인정보 검토)
 문체: 사용자용(`README.md`·`docs/USAGE.md`)은 "\~해요", 개발 문서(나머지)는 "\~한다". 표 칸·목록 항목은 짧은 명사형 가능. `DESIGN.md`는 최초 기획서라 내용을 고치지 않는다.
 
 ## 포트폴리오 갱신 (마일스톤을 마칠 때)
